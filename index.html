@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proovitükkide Arvutus</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            text-align: left; /* Muudetud vasakule joondamiseks */
+        }
+        h2, h3 {
+            color: #333;
+            margin-left: 20px; /* Pealkirjade vasakule joondus */
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 10px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        label {
+            margin: 10px 0;
+            font-weight: bold;
+            display: block;
+        }
+        input[type="text"], input[type="number"], input[type="date"], select {
+            padding: 8px;
+            margin: 5px 0 15px 0; /* Ülemine ja alumine vaheline marginaal */
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 100%; /* Laius 100% täidab ruumi */
+            max-width: 300px; /* Maksimaalne laius */
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .container {
+            width: 80%;
+            margin: 0 auto;
+            max-width: 1000px; /* Maksimaalne laius */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Proovitükkide arvutus</h2>
+        
+        <label for="kuupaev">Kuupäev:</label>
+        <input type="date" id="kuupaev">
+        
+        <label for="langiNumber">Langi number:</label>
+        <input type="text" id="langiNumber">
+        
+        <label for="raadius">Proovitüki raadius (m):</label>
+        <input type="number" id="raadius" step="0.01">
+        
+        <!-- Proovitükkide arvu valik -->
+        <label for="proovitukkideArv">Proovitükkide arv:</label>
+        <select id="proovitukkideArv" onchange="muudaProovitukkideVäljad()">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+        </select>
+        
+        <!-- Dynaamilised proovitükkide sisestusväljad -->
+        <div id="proovitukkideVäljad">
+            <label for="proovitukk1">Proovitükk 1 taime arv:</label>
+            <input type="number" id="proovitukk1">
+        </div>
+        
+        <button onclick="lisaRida()">Lisa</button>
+
+        <h3>Saada andmed tekstifailina</h3>
+        <label for="allalaadimiseKuupaev">Vali kuupäev ja langi numbrid (nt 1, 2, 3):</label>
+        <input type="date" id="allalaadimiseKuupaev">
+        <input type="text" id="langiNumbrid" placeholder="Sisesta langi numbrid eraldi komaga">
+        <button onclick="laadiAndmedTxtFailina()">Laadi andmed alla</button>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Langi number</th>
+                    <th>Proovitüki raadius (m)</th>
+                    <th>Proovitüki pindala (m²)</th>
+                    <th>Proovitükkide taime arv</th>
+                    <th>Proovitükkide arv hektaril</th>
+                    <th>Proovitüki tegemise kuupäev</th>
+                </tr>
+            </thead>
+            <tbody id="tabeliSisu"></tbody>
+        </table>
+
+        <button onclick="kustutaAndmed()">Kustuta kõik andmed</button>
+    </div>
+
+    <script>
+        // Funktsioon, mis muudab proovitükkide sisestusväljad sõltuvalt valitud arvust
+        function muudaProovitukkideVäljad() {
+            let proovitukkideArv = document.getElementById("proovitukkideArv").value;
+            let proovitukkideVäljad = document.getElementById("proovitukkideVäljad");
+            proovitukkideVäljad.innerHTML = '';  // Eemalda kõik olemasolevad väljad
+
+            // Lisa uued sisestusväljad vastavalt valitud proovitükkide arvule
+            for (let i = 1; i <= proovitukkideArv; i++) {
+                let uusVälja = document.createElement('label');
+                uusVälja.innerHTML = `Proovitükk ${i} taime arv: <input type="number" id="proovitukk${i}">`;
+                proovitukkideVäljad.appendChild(uusVälja);
+            }
+        }
+
+        // Funktsioon, mis salvestab andmed tabelisse ja LocalStorage'i
+        function lisaRida() {
+            let kuupaev = document.getElementById("kuupaev").value;
+            let langiNumber = document.getElementById("langiNumber").value;
+            let raadius = parseFloat(document.getElementById("raadius").value);
+            let proovitukkideArv = document.getElementById("proovitukkideArv").value;
+
+            if (!kuupaev || !langiNumber || isNaN(raadius)) {
+                alert("Palun täida kõik väljad!");
+                return;
+            }
+
+            let proovitukkideArvudeSeeria = [];
+            for (let i = 1; i <= proovitukkideArv; i++) {
+                let proovitukk = parseInt(document.getElementById(`proovitukk${i}`).value);
+                if (isNaN(proovitukk)) {
+                    alert("Palun sisesta kõik proovitükkide taime arvud!");
+                    return;
+                }
+                proovitukkideArvudeSeeria.push(proovitukk);
+            }
+
+            let pindala = Math.PI * Math.pow(raadius, 2);
+            let proovitukkideArvHektaril = proovitukkideArvudeSeeria.reduce((sum, val) => sum + val, 0) / proovitukkideArv / pindala * 10000;
+
+            let tabel = document.getElementById("tabeliSisu");
+            let rida = tabel.insertRow();
+            let proovitukkideTaimeArv = proovitukkideArvudeSeeria.join(", ");
+            rida.innerHTML = `<td>${langiNumber}</td><td>${raadius.toFixed(2)}</td><td>${pindala.toFixed(2)}</td><td>${proovitukkideTaimeArv}</td><td>${proovitukkideArvHektaril.toFixed(2)}</td><td>${kuupaev}</td>`; 
+
+            // Salvestame andmed LocalStorage'i
+            let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
+            andmed.push({ kuupaev, langiNumber, raadius, pindala, proovitukkideArvudeSeeria, proovitukkideArvHektaril });
+            localStorage.setItem("proovitukid", JSON.stringify(andmed));
+        }
+
+        // Funktsioon, mis laadib andmed tekstifailina
+        function laadiAndmedTxtFailina() {
+            let kuupaev = document.getElementById("allalaadimiseKuupaev").value;
+            let langiNumbrid = document.getElementById("langiNumbrid").value.split(',').map(num => num.trim());
+
+            if (!kuupaev || !langiNumbrid.length) {
+                alert("Palun sisesta kuupäev ja langi numbrid!");
+                return;
+            }
+
+            let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
+            let valitudAndmed = andmed.filter(rida => rida.kuupaev === kuupaev && langiNumbrid.includes(rida.langiNumber.toString()));
+
+            if (valitudAndmed.length === 0) {
+                alert("Andmeid selle kuupäeva ja langi numbrite kohta ei leitud.");
+                return;
+            }
+
+            let sisu = `Proovitükkide andmed - Kuupäev: ${kuupaev}\n\n`;
+
+            valitudAndmed.forEach((rida) => {
+                sisu += `Lang: ${rida.langiNumber}\n`;
+                sisu += `Proovitüki raadius: ${rida.raadius} m\n`;
+                sisu += `Proovitüki pindala: ${rida.pindala.toFixed(2)} m²\n`;
+                sisu += `Proovitükkide taime arv: ${rida.proovitukkideArvudeSeeria.join(', ')}\n`;
+                sisu += `Proovitükkide arv hektaril: ${rida.proovitukkideArvHektaril.toFixed(2)}\n`;
+                sisu += `Proovitüki tegemise kuupäev: ${rida.kuupaev}\n`;
+                sisu += `\n`;
+            });
+
+            sisu += `Kokkuvõte: \n`;
+            sisu += `Kokku leidub andmeid järgmiste langi numbritega: ${langiNumbrid.join(', ')}\n`;
+            sisu += `Kuupäeval: ${kuupaev}\n\n`;
+
+            let blob = new Blob([sisu], { type: "text/plain" });
+            let link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `${kuupaev}_langid_${langiNumbrid.join('_')}_andmed.txt`;
+            link.click();
+        }
+
+        // Funktsioon, mis kustutab kõik andmed
+        function kustutaAndmed() {
+            if (confirm("Kas oled kindel, et soovid kõik andmed kustutada?")) {
+                localStorage.removeItem("proovitukid");
+                document.getElementById("tabeliSisu").innerHTML = '';
+            }
+        }
+
+        // Laadige salvestatud andmed, kui leht on laaditud
+        window.onload = function() {
+            let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
+            andmed.forEach((rida) => {
+                let tabel = document.getElementById("tabeliSisu");
+                let proovitukkideTaimeArv = rida.proovitukkideArvudeSeeria.join(", ");
+                let ridaElement = tabel.insertRow();
+                ridaElement.innerHTML = `<td>${rida.langiNumber}</td><td>${rida.raadius.toFixed(2)}</td><td>${rida.pindala.toFixed(2)}</td><td>${proovitukkideTaimeArv}</td><td>${rida.proovitukkideArvHektaril.toFixed(2)}</td><td>${rida.kuupaev}</td>`;
+            });
+        };
+    </script>
+</body>
+</html>
