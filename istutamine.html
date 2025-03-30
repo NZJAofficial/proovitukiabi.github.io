@@ -38,6 +38,7 @@
             padding: 20px;
             border-radius: 5px;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            position: relative;
         }
         h2 {
             color: #333;
@@ -67,6 +68,10 @@
         }
         button:hover {
             background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
         }
         table {
             width: 100%;
@@ -104,33 +109,66 @@
             padding-left: 30px !important;
             text-align: left !important;
         }
+        .timer-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #333;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 18px;
+            display: none;
+            z-index: 1000;
+        }
+        .active-work {
+            background-color: #fffde7;
+        }
+        .work-session-info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
+    <div class="timer-container" id="timerContainer">
+        <div>Tööaeg: <span id="timerDisplay">00:00:00</span></div>
+        <button id="stopWorkButton" style="margin-top: 10px; width: 100%;">Lõpeta töö</button>
+    </div>
+
     <div class="top-bar">
         <button class="top-button" onclick="location.href='index.html'">Proovitükkide arvutus</button>
         <button class="top-button" onclick="location.href='istutamine.html'">Istutamise kalkulaator</button>
     </div>
 
-    <div class="container">
+    <div class="container" id="mainContainer">
         <h2>Istutamise Kalkulaator</h2>
         
         <div class="input-group">
-            <label for="taimedeArv">Mitu taime istutasid:</label>
-            <input type="number" id="taimedeArv" min="0" step="1">
-            
-            <label for="taimeHind">Ühe taime hind (€):</label>
-            <input type="number" id="taimeHind" min="0" step="0.01">
-            
             <label for="langiNumber">Langi number:</label>
             <input type="text" id="langiNumber">
             
             <label for="hektarid">Hektarid:</label>
             <input type="number" id="hektarid" min="0" step="0.01">
             
-            <button onclick="arvutaKokku()">Arvuta kokku</button>
+            <button id="startWorkButton" onclick="alustaTood()">Alusta töötegemist</button>
+            <div id="workInfo" style="display: none; margin-top: 10px;">
+                <p>Töö käib: <span id="currentLangNumber"></span></p>
+            </div>
         </div>
         
+        <div class="input-group" id="workInputGroup" style="display: none;">
+            <h3>Töö andmete sisestamine</h3>
+            <label for="taimedeArv">Mitu taime istutasid:</label>
+            <input type="number" id="taimedeArv" min="0" step="1">
+            
+            <label for="taimeHind">Ühe taime hind (€):</label>
+            <input type="number" id="taimeHind" min="0" step="0.01">
+            
+            <button onclick="lisaTaimed()">Lisa taimed</button>
+        </div>
+
         <h3>Istutamise andmed</h3>
         <div class="scrollable-table">
             <table id="istutamiseTabel">
@@ -141,6 +179,7 @@
                         <th>Istutuste arv</th>
                         <th>Kokku taimi</th>
                         <th>Kokku teenitud (€)</th>
+                        <th>Tööaeg</th>
                         <th>Tegevused</th>
                     </tr>
                 </thead>
@@ -153,60 +192,115 @@
     </div>
 
     <script>
+        // Muutujad tööaja jälgimiseks
+        let startTime;
+        let timerInterval;
+        let currentLangNumber = "";
+        let currentHektarid = 0;
+        let currentWorkSessionId = "";
+        
         // Salvestame andmed localStorage'i
         let istutamiseAndmed = JSON.parse(localStorage.getItem("istutamiseAndmed")) || [];
         
-        // Arvutame kokku ja lisame tabelisse
-        function arvutaKokku() {
-            const taimedeArv = parseInt(document.getElementById("taimedeArv").value);
-            const taimeHind = parseFloat(document.getElementById("taimeHind").value);
+        // Alustame tööd
+        function alustaTood() {
             const langiNumber = document.getElementById("langiNumber").value;
             const hektarid = parseFloat(document.getElementById("hektarid").value);
             
-            if (isNaN(taimedeArv) || isNaN(taimeHind) || !langiNumber || isNaN(hektarid)) {
-                alert("Palun täida kõik väljad korrektselt!");
+            if (!langiNumber || isNaN(hektarid)) {
+                alert("Palun sisesta langi number ja hektarid!");
+                return;
+            }
+            
+            currentLangNumber = langiNumber;
+            currentHektarid = hektarid;
+            currentWorkSessionId = Date.now().toString();
+            
+            // Aktiveerime töörežiimi
+            document.getElementById("startWorkButton").disabled = true;
+            document.getElementById("langiNumber").disabled = true;
+            document.getElementById("hektarid").disabled = true;
+            document.getElementById("workInputGroup").style.display = "block";
+            document.getElementById("workInfo").style.display = "block";
+            document.getElementById("currentLangNumber").textContent = langiNumber;
+            document.getElementById("mainContainer").classList.add("active-work");
+            
+            // Käivitame ajastaja
+            startTime = new Date();
+            document.getElementById("timerContainer").style.display = "block";
+            käivitaAjastaja();
+        }
+        
+        // Käivitame ajastaja
+        function käivitaAjastaja() {
+            timerInterval = setInterval(function() {
+                const currentTime = new Date();
+                const timeDiff = currentTime - startTime;
+                
+                const hours = Math.floor(timeDiff / (1000 * 60 * 60));
+                const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
+                
+                document.getElementById("timerDisplay").textContent = 
+                    `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000);
+            
+            // Seadistame töö lõpetamise nupu
+            document.getElementById("stopWorkButton").onclick = lõpetaTöö;
+        }
+        
+        // Lisame taimed töö käigus
+        function lisaTaimed() {
+            const taimedeArv = parseInt(document.getElementById("taimedeArv").value);
+            const taimeHind = parseFloat(document.getElementById("taimeHind").value);
+            
+            if (isNaN(taimedeArv) || isNaN(taimeHind)) {
+                alert("Palun sisesta taimede arv ja hind korrektselt!");
                 return;
             }
             
             const kokkuTeenitud = taimedeArv * taimeHind;
+            const praeguneAeg = new Date();
+            const kellaaeg = praeguneAeg.toTimeString().slice(0, 8);
             
-            // Kontrollime, kas lang juba eksisteerib
-            const langIndex = istutamiseAndmed.findIndex(item => item.langiNumber === langiNumber);
+            // Kontrollime, kas selle tööseansiga lang juba eksisteerib
+            const langIndex = istutamiseAndmed.findIndex(item => item.workSessionId === currentWorkSessionId);
             
             if (langIndex === -1) {
-                // Uus lang
+                // Uus tööseanss
                 const uusLang = {
-                    langiNumber,
-                    hektarid,
+                    langiNumber: currentLangNumber,
+                    hektarid: currentHektarid,
+                    workSessionId: currentWorkSessionId,
+                    startTime: startTime.toISOString(),
+                    endTime: null,
                     istutused: [{
                         taimedeArv,
                         taimeHind,
                         kokkuTeenitud,
-                        kuupaev: new Date().toISOString().slice(0, 10)
+                        lisamiseAeg: praeguneAeg.toISOString(),
+                        kellaaeg
                     }],
                     kokkuTaimed: taimedeArv,
-                    kokkuTeenitud: kokkuTeenitud
+                    kokkuTeenitud: kokkuTeenitud,
+                    tööaeg: "Töös"
                 };
                 
                 istutamiseAndmed.push(uusLang);
             } else {
-                // Olemasolevale langile lisame uue istutuse
+                // Olemasolevale tööseansile lisame uue istutuse
                 const olemasolevLang = istutamiseAndmed[langIndex];
                 olemasolevLang.istutused.push({
                     taimedeArv,
                     taimeHind,
                     kokkuTeenitud,
-                    kuupaev: new Date().toISOString().slice(0, 10)
+                    lisamiseAeg: praeguneAeg.toISOString(),
+                    kellaaeg
                 });
                 
                 // Uuendame kogusummasid
                 olemasolevLang.kokkuTaimed += taimedeArv;
                 olemasolevLang.kokkuTeenitud += kokkuTeenitud;
-                
-                // Kui hektarid on erinevad, võtame uue väärtuse
-                if (olemasolevLang.hektarid !== hektarid) {
-                    olemasolevLang.hektarid = hektarid;
-                }
             }
             
             // Salvestame andmed
@@ -220,20 +314,71 @@
             document.getElementById("taimeHind").value = "";
         }
         
+        // Lõpetame töö
+        function lõpetaTöö() {
+            clearInterval(timerInterval);
+            document.getElementById("timerContainer").style.display = "none";
+            
+            const endTime = new Date();
+            const timeDiff = endTime - startTime;
+            const hours = Math.floor(timeDiff / (1000 * 60 * 60));
+            const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
+            const tööaeg = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            // Uuendame tööseansi andmeid
+            const langIndex = istutamiseAndmed.findIndex(item => item.workSessionId === currentWorkSessionId);
+            
+            if (langIndex !== -1) {
+                istutamiseAndmed[langIndex].endTime = endTime.toISOString();
+                istutamiseAndmed[langIndex].tööaeg = tööaeg;
+                istutamiseAndmed[langIndex].workSessionId = ""; // Eemaldame sessiooni ID, kuna töö on lõppenud
+                
+                localStorage.setItem("istutamiseAndmed", JSON.stringify(istutamiseAndmed));
+            }
+            
+            // Lähtestame töörežiimi
+            document.getElementById("startWorkButton").disabled = false;
+            document.getElementById("langiNumber").disabled = false;
+            document.getElementById("hektarid").disabled = false;
+            document.getElementById("workInputGroup").style.display = "none";
+            document.getElementById("workInfo").style.display = "none";
+            document.getElementById("mainContainer").classList.remove("active-work");
+            
+            // Uuendame tabelit
+            uuendaTabel();
+            
+            // Tühjendame väljad
+            document.getElementById("langiNumber").value = "";
+            document.getElementById("hektarid").value = "";
+        }
+        
         // Uuendame tabeli andmetega
         function uuendaTabel() {
             const tabel = document.getElementById("istutamiseSisu");
             tabel.innerHTML = "";
             
-            istutamiseAndmed.forEach((lang, langIndex) => {
+            // Sordime andmed, et lõpetatud tööd oleksid üleval
+            const sorditudAndmed = [...istutamiseAndmed].sort((a, b) => {
+                if (a.tööaeg === "Töös") return -1;
+                if (b.tööaeg === "Töös") return 1;
+                return new Date(b.endTime) - new Date(a.endTime);
+            });
+            
+            sorditudAndmed.forEach((lang, langIndex) => {
                 // Peamine rida (langi üldandmed)
                 const peamineRida = tabel.insertRow();
+                if (lang.tööaeg === "Töös") {
+                    peamineRida.style.backgroundColor = "#e8f5e9";
+                }
+                
                 peamineRida.innerHTML = `
                     <td>${lang.langiNumber}</td>
                     <td>${lang.hektarid.toFixed(2)}</td>
                     <td>${lang.istutused.length}</td>
                     <td>${lang.kokkuTaimed}</td>
                     <td>${lang.kokkuTeenitud.toFixed(2)}</td>
+                    <td>${lang.tööaeg}</td>
                     <td>
                         <button onclick="näitaDetailseid(${langIndex})">Detailid</button>
                         <button onclick="kustutaLang(${langIndex})">Kustuta</button>
@@ -242,12 +387,18 @@
                 
                 // Detailrida (kui detailid on nähtavad)
                 if (lang.näitaDetailseid) {
-                    lang.istutused.forEach((istutus, istutusIndex) => {
+                    // Sordime istutused ajaliselt
+                    const sorditudIstutused = [...lang.istutused].sort((a, b) => {
+                        return new Date(a.lisamiseAeg) - new Date(b.lisamiseAeg);
+                    });
+                    
+                    sorditudIstutused.forEach((istutus, istutusIndex) => {
                         const detailRida = tabel.insertRow();
                         detailRida.className = "details-row";
                         detailRida.innerHTML = `
-                            <td class="details-cell" colspan="6">
-                                Kuupäev: ${istutus.kuupaev} | 
+                            <td class="details-cell" colspan="7">
+                                Kuupäev: ${new Date(istutus.lisamiseAeg).toLocaleDateString()} | 
+                                Kellaaeg: ${istutus.kellaaeg} | 
                                 Taimede arv: ${istutus.taimedeArv} | 
                                 Ühe taime hind: ${istutus.taimeHind.toFixed(2)} € | 
                                 Kokku: ${istutus.kokkuTeenitud.toFixed(2)} €
@@ -281,7 +432,7 @@
                 const lang = istutamiseAndmed[langIndex];
                 
                 // Eemaldame istutuse
-                const eemaldatudIstutus = lang.istutuses.splice(istutusIndex, 1)[0];
+                const eemaldatudIstutus = lang.istutused.splice(istutusIndex, 1)[0];
                 
                 // Uuendame kogusummasid
                 lang.kokkuTaimed -= eemaldatudIstutus.taimedeArv;
@@ -308,18 +459,45 @@
             let koguTeenitud = 0;
             let koguTaimed = 0;
             let koguHektarid = 0;
+            let koguTööaeg = 0; // sekundites
             
-            istutamiseAndmed.forEach(lang => {
+            // Sordime andmed kuupäeva järgi (uusimad esimesena)
+            const sorditudAndmed = [...istutamiseAndmed].sort((a, b) => {
+                const dateA = a.endTime ? new Date(a.endTime) : new Date();
+                const dateB = b.endTime ? new Date(b.endTime) : new Date();
+                return dateB - dateA;
+            });
+            
+            sorditudAndmed.forEach(lang => {
+                const algusAeg = new Date(lang.startTime);
+                const lõppAeg = lang.endTime ? new Date(lang.endTime) : new Date();
+                const tööaegSekundites = (lõppAeg - algusAeg) / 1000;
+                koguTööaeg += tööaegSekundites;
+                
+                const tööaegTundides = Math.floor(tööaegSekundites / 3600);
+                const tööaegMinutites = Math.floor((tööaegSekundites % 3600) / 60);
+                const tööaegSekundid = Math.floor(tööaegSekundites % 60);
+                const vormindatudTööaeg = `${tööaegTundides.toString().padStart(2, '0')}:${tööaegMinutites.toString().padStart(2, '0')}:${tööaegSekundid.toString().padStart(2, '0')}`;
+                
                 sisu += `Langi number: ${lang.langiNumber}\n`;
                 sisu += `Hektarid: ${lang.hektarid.toFixed(2)}\n`;
+                sisu += `Tööaeg: ${vormindatudTööaeg}\n`;
+                sisu += `Algus: ${algusAeg.toLocaleString()}\n`;
+                sisu += `Lõpp: ${lang.endTime ? new Date(lang.endTime).toLocaleString() : "Töös"}\n`;
                 sisu += `Istutuste arv: ${lang.istutused.length}\n`;
                 sisu += `Kokku istutatud taimi: ${lang.kokkuTaimed}\n`;
                 sisu += `Kokku teenitud: ${lang.kokkuTeenitud.toFixed(2)} €\n\n`;
                 
                 // Detailid iga istutuse kohta
                 sisu += `Istutuste detailid:\n`;
-                lang.istutused.forEach(istutus => {
-                    sisu += `- ${istutus.kuupaev}: ${istutus.taimedeArv} taimed (${istutus.taimeHind.toFixed(2)} €/tk), kokku ${istutus.kokkuTeenitud.toFixed(2)} €\n`;
+                // Sordime istutused ajaliselt
+                const sorditudIstutused = [...lang.istutused].sort((a, b) => {
+                    return new Date(a.lisamiseAeg) - new Date(b.lisamiseAeg);
+                });
+                
+                sorditudIstutused.forEach(istutus => {
+                    const lisamiseAeg = new Date(istutus.lisamiseAeg);
+                    sisu += `- ${lisamiseAeg.toLocaleTimeString()}: ${istutus.taimedeArv} taimed (${istutus.taimeHind.toFixed(2)} €/tk), kokku ${istutus.kokkuTeenitud.toFixed(2)} €\n`;
                 });
                 
                 sisu += `\n`;
@@ -329,13 +507,21 @@
                 koguHektarid += lang.hektarid;
             });
             
+            // Arvutame kogu tööaja
+            const koguTööaegTundides = Math.floor(koguTööaeg / 3600);
+            const koguTööaegMinutites = Math.floor((koguTööaeg % 3600) / 60);
+            const koguTööaegSekundid = Math.floor(koguTööaeg % 60);
+            const vormindatudKoguTööaeg = `${koguTööaegTundides.toString().padStart(2, '0')}:${koguTööaegMinutites.toString().padStart(2, '0')}:${koguTööaegSekundid.toString().padStart(2, '0')}`;
+            
             sisu += `KOKKUVÕTE:\n`;
             sisu += `Kokku langisid: ${istutamiseAndmed.length}\n`;
             sisu += `Kokku hektareid: ${koguHektarid.toFixed(2)}\n`;
             sisu += `Kokku istutatud taimi: ${koguTaimed}\n`;
             sisu += `Kokku teenitud: ${koguTeenitud.toFixed(2)} €\n`;
+            sisu += `Kokku tööaega: ${vormindatudKoguTööaeg}\n`;
             sisu += `Keskmine taimede arv hektari kohta: ${(koguTaimed / koguHektarid).toFixed(2)}\n`;
             sisu += `Keskmine tulu hektari kohta: ${(koguTeenitud / koguHektarid).toFixed(2)} €\n`;
+            sisu += `Keskmine tulu tunnis: ${(koguTeenitud / (koguTööaeg / 3600)).toFixed(2)} €/h\n`;
             
             const blob = new Blob([sisu], { type: "text/plain" });
             const link = document.createElement("a");
@@ -356,10 +542,32 @@
         // Laadime salvestatud andmed lehe avamisel
         window.onload = function() {
             istutamiseAndmed = JSON.parse(localStorage.getItem("istutamiseAndmed")) || [];
-            uuendaTabel();
             
-            // Määra tänane kuupäev vaikeväärtuseks
-            document.getElementById("kuupaev").value = new Date().toISOString().slice(0, 10);
+            // Kontrollime, kas on pooleliolevaid töid
+            const pooleliolevTöö = istutamiseAndmed.find(lang => lang.tööaeg === "Töös");
+            
+            if (pooleliolevTöö) {
+                // Taastame poolelioleva töö
+                currentLangNumber = pooleliolevTöö.langiNumber;
+                currentHektarid = pooleliolevTöö.hektarid;
+                currentWorkSessionId = pooleliolevTöö.workSessionId || Date.now().toString();
+                startTime = new Date(pooleliolevTöö.startTime);
+                
+                // Aktiveerime töörežiimi
+                document.getElementById("startWorkButton").disabled = true;
+                document.getElementById("langiNumber").disabled = true;
+                document.getElementById("hektarid").disabled = true;
+                document.getElementById("workInputGroup").style.display = "block";
+                document.getElementById("workInfo").style.display = "block";
+                document.getElementById("currentLangNumber").textContent = currentLangNumber;
+                document.getElementById("mainContainer").classList.add("active-work");
+                
+                // Käivitame ajastaja
+                document.getElementById("timerContainer").style.display = "block";
+                käivitaAjastaja();
+            }
+            
+            uuendaTabel();
         };
     </script>
 </body>
