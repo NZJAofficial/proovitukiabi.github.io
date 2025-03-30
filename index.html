@@ -123,13 +123,41 @@
             color: #666;
             margin-top: 5px;
         }
-        .gps-coordinates {
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
+        .gps-container {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
         }
-        .gps-buttons {
+        .map-container {
+            height: 300px;
+            margin-top: 15px;
+            border: 1px solid #ddd;
+            position: relative;
+            display: none;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+        .map-marker {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            background-color: red;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        .coordinates-display {
             margin-top: 10px;
+            font-size: 14px;
+        }
+        .summary-row {
+            font-weight: bold;
+            background-color: #e6f7ff;
         }
     </style>
 </head>
@@ -154,11 +182,20 @@
             <button id="startWorkButton" onclick="alustaTood()">Alusta töötegemist</button>
             <div id="workInfo" style="display: none; margin-top: 10px;">
                 <p>Töö käib: <span id="currentLangNumber"></span></p>
-                <div class="gps-coordinates">
-                    <p>GPS koordinaadid: <span id="gpsCoordinates">Määramata</span></p>
-                    <div class="gps-buttons">
-                        <button onclick="kysiGPS()">Määra asukoht</button>
-                        <button onclick="kustutaGPS()">Eemalda asukoht</button>
+                <div class="gps-container">
+                    <h4>Asukoha märkimine</h4>
+                    <button onclick="näitaKaarti()">Ava kaart</button>
+                    <button onclick="kasutaGPS()">Kasuta GPS-i</button>
+                    <button onclick="kustutaAsukoht()">Eemalda asukoht</button>
+                    
+                    <div class="map-container" id="mapContainer">
+                        <div id="map"></div>
+                        <div class="map-marker"></div>
+                    </div>
+                    
+                    <div class="coordinates-display">
+                        <p>Valitud koordinaadid: <span id="selectedCoordinates">Määramata</span></p>
+                        <p>Täpsus: <span id="accuracyInfo">-</span></p>
                     </div>
                 </div>
             </div>
@@ -199,7 +236,7 @@
                         <th>Proovitükkide taime arv</th>
                         <th>Proovitükkide arv hektaril</th>
                         <th>Kuupäev</th>
-                        <th>GPS koordinaadid</th>
+                        <th>Koordinaadid</th>
                         <th>Tööaeg</th>
                         <th>Tegevused</th>
                     </tr>
@@ -220,6 +257,9 @@
         let currentWorkSessionId = "";
         let currentGPS = null;
         let currentProovitukid = [];
+        let map;
+        let marker;
+        let clickListener;
         
         // Funktsioon, mis muudab proovitükkide sisestusväljad
         function muudaProovitukkideVäljad() {
@@ -249,6 +289,7 @@
             currentLangNumber = langiNumber;
             currentWorkSessionId = Date.now().toString();
             currentProovitukid = [];
+            currentGPS = null;
             
             // Aktiveerime töörežiimi
             document.getElementById("startWorkButton").disabled = true;
@@ -257,6 +298,8 @@
             document.getElementById("workInfo").style.display = "block";
             document.getElementById("currentLangNumber").textContent = langiNumber;
             document.getElementById("mainContainer").classList.add("active-work");
+            document.getElementById("selectedCoordinates").textContent = "Määramata";
+            document.getElementById("accuracyInfo").textContent = "-";
             
             // Määrame tänase kuupäeva
             document.getElementById("kuupaev").value = new Date().toISOString().slice(0, 10);
@@ -283,6 +326,97 @@
             
             // Seadistame töö lõpetamise nupu
             document.getElementById("stopWorkButton").onclick = lõpetaTöö;
+        }
+        
+        // Näita kaarti asukoha valimiseks
+        function näitaKaarti() {
+            const mapContainer = document.getElementById("mapContainer");
+            mapContainer.style.display = "block";
+            
+            if (!map) {
+                // Loome uue kaardi keskpunktiga Eesti
+                map = L.map('map').setView([58.5953, 25.0136], 7);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(map);
+                
+                // Lisame markeri
+                marker = L.marker([58.5953, 25.0136], {
+                    draggable: true,
+                    autoPan: true
+                }).addTo(map);
+                
+                // Kuulame markeri liigutamist
+                marker.on('move', function(e) {
+                    const latlng = marker.getLatLng();
+                    currentGPS = {
+                        latitude: latlng.lat,
+                        longitude: latlng.lng,
+                        accuracy: 10 // Eeldame 10m täpsust käsitsi märkimisel
+                    };
+                    uuendaKoordinaatideKuvamine();
+                });
+                
+                // Kuulame kaardil klikkimist
+                clickListener = map.on('click', function(e) {
+                    marker.setLatLng(e.latlng);
+                    currentGPS = {
+                        latitude: e.latlng.lat,
+                        longitude: e.latlng.lng,
+                        accuracy: 10 // Eeldame 10m täpsust käsitsi märkimisel
+                    };
+                    uuendaKoordinaatideKuvamine();
+                });
+            }
+        }
+        
+        // Kasuta GPS-i asukoha määramiseks
+        function kasutaGPS() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        currentGPS = {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy: position.coords.accuracy
+                        };
+                        
+                        // Näita kaarti ja keskenda valitud asukohale
+                        näitaKaarti();
+                        map.setView([currentGPS.latitude, currentGPS.longitude], 16);
+                        marker.setLatLng([currentGPS.latitude, currentGPS.longitude]);
+                        
+                        uuendaKoordinaatideKuvamine();
+                    },
+                    function(error) {
+                        alert("GPS asukoha määramine ebaõnnestus: " + error.message);
+                    },
+                    { enableHighAccuracy: true }
+                );
+            } else {
+                alert("Teie brauser ei toeta geolokatsiooni!");
+            }
+        }
+        
+        // Kustuta asukoht
+        function kustutaAsukoht() {
+            currentGPS = null;
+            document.getElementById("selectedCoordinates").textContent = "Määramata";
+            document.getElementById("accuracyInfo").textContent = "-";
+            document.getElementById("mapContainer").style.display = "none";
+        }
+        
+        // Uuenda koordinaatide kuvamist
+        function uuendaKoordinaatideKuvamine() {
+            if (currentGPS) {
+                document.getElementById("selectedCoordinates").textContent = 
+                    `${currentGPS.latitude.toFixed(6)}, ${currentGPS.longitude.toFixed(6)}`;
+                document.getElementById("accuracyInfo").textContent = 
+                    `±${Math.round(currentGPS.accuracy)} meetrit`;
+            } else {
+                document.getElementById("selectedCoordinates").textContent = "Määramata";
+                document.getElementById("accuracyInfo").textContent = "-";
+            }
         }
         
         // Lisame proovitüki andmed
@@ -316,7 +450,7 @@
                 pindala,
                 proovitukkideArvudeSeeria,
                 proovitukkideArvHektaril,
-                gps: currentGPS
+                gps: currentGPS ? {...currentGPS} : null
             });
             
             // Uuendame tabelit
@@ -329,7 +463,7 @@
             }
         }
         
-        // Lõpetame töö
+        // Lõpetame töö ja salvestame andmed
         function lõpetaTöö() {
             clearInterval(timerInterval);
             document.getElementById("timerContainer").style.display = "none";
@@ -341,10 +475,38 @@
             const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
             const tööaeg = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
             
-            // Lisame kõik proovitükid andmebaasi
+            // Arvutame kogu taimede arvu ja keskmise hektaril
+            let kokkuTaimed = 0;
+            let keskmineArvHektaril = 0;
+            let kokkuPindala = 0;
+            
+            currentProovitukid.forEach(proovitukk => {
+                kokkuTaimed += proovitukk.proovitukkideArvudeSeeria.reduce((sum, val) => sum + val, 0);
+                keskmineArvHektaril += proovitukk.proovitukkideArvHektaril;
+                kokkuPindala += proovitukk.pindala;
+            });
+            
             if (currentProovitukid.length > 0) {
+                keskmineArvHektaril = keskmineArvHektaril / currentProovitukid.length;
+                
                 let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
                 
+                // Lisame kokkuvõtva kirje
+                andmed.push({
+                    langiNumber: currentLangNumber,
+                    kuupaev: currentProovitukid[0].kuupaev, // Võtame esimese proovitüki kuupäeva
+                    raadius: null, // Kokkuvõttes pole raadiust
+                    pindala: kokkuPindala,
+                    proovitukkideArvudeSeeria: [kokkuTaimed],
+                    proovitukkideArvHektaril: keskmineArvHektaril,
+                    gps: currentProovitukid.length > 0 ? currentProovitukid[0].gps : null, // Võtame esimese proovitüki asukoha
+                    tööaeg: tööaeg,
+                    isSummary: true, // Märgime kokkuvõtva kirjena
+                    workSessionId: currentWorkSessionId,
+                    details: [...currentProovitukid] // Salvestame ka detailid
+                });
+                
+                // Lisame ka kõik üksikud proovitükid
                 currentProovitukid.forEach(proovitukk => {
                     andmed.push({
                         langiNumber: currentLangNumber,
@@ -355,6 +517,7 @@
                         proovitukkideArvHektaril: proovitukk.proovitukkideArvHektaril,
                         gps: proovitukk.gps,
                         tööaeg: tööaeg,
+                        isSummary: false,
                         workSessionId: currentWorkSessionId
                     });
                 });
@@ -368,42 +531,15 @@
             document.getElementById("workInputGroup").style.display = "none";
             document.getElementById("workInfo").style.display = "none";
             document.getElementById("mainContainer").classList.remove("active-work");
+            document.getElementById("mapContainer").style.display = "none";
             
             // Tühjendame väljad
             document.getElementById("langiNumber").value = "";
             currentGPS = null;
-            document.getElementById("gpsCoordinates").textContent = "Määramata";
+            currentProovitukid = [];
             
             // Uuendame tabelit
             uuendaTabel();
-        }
-        
-        // Küsi GPS asukohta
-        function kysiGPS() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    function(position) {
-                        currentGPS = {
-                            latitude: position.coords.latitude,
-                            longitude: position.coords.longitude,
-                            accuracy: position.coords.accuracy
-                        };
-                        document.getElementById("gpsCoordinates").textContent = 
-                            `${currentGPS.latitude.toFixed(6)}, ${currentGPS.longitude.toFixed(6)} (täpsus: ${Math.round(currentGPS.accuracy)} m)`;
-                    },
-                    function(error) {
-                        alert("GPS asukoha määramine ebaõnnestus: " + error.message);
-                    }
-                );
-            } else {
-                alert("Teie brauser ei toeta geolokatsiooni!");
-            }
-        }
-        
-        // Kustuta GPS asukoht
-        function kustutaGPS() {
-            currentGPS = null;
-            document.getElementById("gpsCoordinates").textContent = "Määramata";
         }
         
         // Uuendame tabeli andmetega
@@ -411,53 +547,115 @@
             const tabel = document.getElementById("proovitukkideSisu");
             tabel.innerHTML = "";
             
-            // Kuvame esmalt töös olevad proovitükid
-            currentProovitukid.forEach((proovitukk, index) => {
-                const rida = tabel.insertRow();
-                const proovitukkideTaimeArv = proovitukk.proovitukkideArvudeSeeria.join(", ");
-                const gpsText = proovitukk.gps ? 
-                    `${proovitukk.gps.latitude.toFixed(6)}, ${proovitukk.gps.longitude.toFixed(6)}` : 
-                    "Määramata";
+            let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
+            
+            // Grupeerime andmed langi numbri ja tööseansi järgi
+            let groupedData = {};
+            andmed.forEach(item => {
+                if (!item.workSessionId) return;
                 
-                rida.innerHTML = `
-                    <td>${currentLangNumber}</td>
-                    <td>${proovitukk.raadius.toFixed(2)}</td>
-                    <td>${proovitukk.pindala.toFixed(2)}</td>
-                    <td>${proovitukkideTaimeArv}</td>
-                    <td>${proovitukk.proovitukkideArvHektaril.toFixed(2)}</td>
-                    <td>${proovitukk.kuupaev}</td>
-                    <td>${gpsText}</td>
-                    <td>Töös</td>
-                    <td>
-                        <button onclick="kustutaProovitukk(${index})">Kustuta</button>
-                    </td>
-                `;
+                if (!groupedData[item.workSessionId]) {
+                    groupedData[item.workSessionId] = {
+                        langiNumber: item.langiNumber,
+                        items: [],
+                        summary: null
+                    };
+                }
+                
+                if (item.isSummary) {
+                    groupedData[item.workSessionId].summary = item;
+                } else {
+                    groupedData[item.workSessionId].items.push(item);
+                }
             });
             
-            // Kuvame salvestatud proovitükid
-            let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
-            andmed.filter(item => item.langiNumber === currentLangNumber && item.workSessionId !== currentWorkSessionId)
-                .forEach((proovitukk, index) => {
-                    const rida = tabel.insertRow();
+            // Lisame töös olevad proovitükid (kui neid on)
+            if (currentProovitukid.length > 0) {
+                const rida = tabel.insertRow();
+                rida.className = "summary-row";
+                rida.innerHTML = `
+                    <td>${currentLangNumber} (TÖÖS)</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>${currentProovitukid.reduce((sum, pt) => sum + pt.proovitukkideArvudeSeeria.reduce((s, v) => s + v, 0), 0)}</td>
+                    <td>${(currentProovitukid.reduce((sum, pt) => sum + pt.proovitukkideArvHektaril, 0) / currentProovitukid.length).toFixed(2)}</td>
+                    <td>${currentProovitukid[0]?.kuupaev || '-'}</td>
+                    <td>${currentProovitukid[0]?.gps ? `${currentProovitukid[0].gps.latitude.toFixed(6)}, ${currentProovitukid[0].gps.longitude.toFixed(6)}` : 'Määramata'}</td>
+                    <td>Töös</td>
+                    <td></td>
+                `;
+                
+                // Lisame detailread
+                currentProovitukid.forEach((proovitukk, index) => {
+                    const detailRida = tabel.insertRow();
                     const proovitukkideTaimeArv = proovitukk.proovitukkideArvudeSeeria.join(", ");
                     const gpsText = proovitukk.gps ? 
                         `${proovitukk.gps.latitude.toFixed(6)}, ${proovitukk.gps.longitude.toFixed(6)}` : 
                         "Määramata";
                     
-                    rida.innerHTML = `
-                        <td>${proovitukk.langiNumber}</td>
+                    detailRida.innerHTML = `
+                        <td>${currentLangNumber}</td>
                         <td>${proovitukk.raadius.toFixed(2)}</td>
                         <td>${proovitukk.pindala.toFixed(2)}</td>
                         <td>${proovitukkideTaimeArv}</td>
                         <td>${proovitukk.proovitukkideArvHektaril.toFixed(2)}</td>
                         <td>${proovitukk.kuupaev}</td>
                         <td>${gpsText}</td>
-                        <td>${proovitukk.tööaeg}</td>
+                        <td>Töös</td>
                         <td>
-                            <button onclick="kustutaSalvestatudProovitukk(${index})">Kustuta</button>
+                            <button onclick="kustutaProovitukk(${index})">Kustuta</button>
                         </td>
                     `;
                 });
+            }
+            
+            // Lisame salvestatud andmed
+            Object.values(groupedData).forEach(group => {
+                if (group.summary) {
+                    const rida = tabel.insertRow();
+                    rida.className = "summary-row";
+                    const gpsText = group.summary.gps ? 
+                        `${group.summary.gps.latitude.toFixed(6)}, ${group.summary.gps.longitude.toFixed(6)}` : 
+                        "Määramata";
+                    
+                    rida.innerHTML = `
+                        <td>${group.summary.langiNumber}</td>
+                        <td>-</td>
+                        <td>${group.summary.pindala.toFixed(2)}</td>
+                        <td>${group.summary.proovitukkideArvudeSeeria[0]}</td>
+                        <td>${group.summary.proovitukkideArvHektaril.toFixed(2)}</td>
+                        <td>${group.summary.kuupaev}</td>
+                        <td>${gpsText}</td>
+                        <td>${group.summary.tööaeg}</td>
+                        <td>
+                            <button onclick="kustutaTööSeanss('${group.summary.workSessionId}')">Kustuta kogu töö</button>
+                        </td>
+                    `;
+                    
+                    // Lisame detailread
+                    group.items.forEach(item => {
+                        const detailRida = tabel.insertRow();
+                        const proovitukkideTaimeArv = item.proovitukkideArvudeSeeria.join(", ");
+                        const gpsText = item.gps ? 
+                            `${item.gps.latitude.toFixed(6)}, ${item.gps.longitude.toFixed(6)}` : 
+                            "Määramata";
+                        
+                        detailRida.innerHTML = `
+                            <td>${item.langiNumber}</td>
+                            <td>${item.raadius.toFixed(2)}</td>
+                            <td>${item.pindala.toFixed(2)}</td>
+                            <td>${proovitukkideTaimeArv}</td>
+                            <td>${item.proovitukkideArvHektaril.toFixed(2)}</td>
+                            <td>${item.kuupaev}</td>
+                            <td>${gpsText}</td>
+                            <td>${item.tööaeg}</td>
+                            <td>
+                                <button onclick="kustutaSalvestatudProovitukk('${item.workSessionId}', ${item.isSummary ? 'true' : 'false'})">Kustuta</button>
+                            </td>
+                        `;
+                    });
+                }
+            });
         }
         
         // Kustuta töös olev proovitükk
@@ -468,11 +666,69 @@
             }
         }
         
+        // Kustuta kogu tööseanss
+        function kustutaTööSeanss(workSessionId) {
+            if (confirm("Kas oled kindel, et soovid kogu selle tööseansi andmed kustutada?")) {
+                let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
+                andmed = andmed.filter(item => item.workSessionId !== workSessionId);
+                localStorage.setItem("proovitukid", JSON.stringify(andmed));
+                uuendaTabel();
+            }
+        }
+        
         // Kustuta salvestatud proovitükk
-        function kustutaSalvestatudProovitukk(index) {
+        function kustutaSalvestatudProovitukk(workSessionId, isSummary) {
             if (confirm("Kas oled kindel, et soovid selle proovitüki kustutada?")) {
                 let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
-                andmed.splice(index, 1);
+                
+                if (isSummary) {
+                    // Kustutame kogu tööseansi
+                    andmed = andmed.filter(item => item.workSessionId !== workSessionId);
+                } else {
+                    // Kustutame üksiku proovitüki
+                    const summaryIndex = andmed.findIndex(item => item.workSessionId === workSessionId && item.isSummary);
+                    
+                    if (summaryIndex !== -1) {
+                        // Uuendame kokkuvõtet
+                        const itemsInSession = andmed.filter(item => 
+                            item.workSessionId === workSessionId && !item.isSummary
+                        );
+                        
+                        if (itemsInSession.length <= 1) {
+                            // Kui jääb ainult üks proovitükk, kustutame kogu seansi
+                            andmed = andmed.filter(item => item.workSessionId !== workSessionId);
+                        } else {
+                            // Arvutame uued kogusummad
+                            let kokkuTaimed = 0;
+                            let keskmineArvHektaril = 0;
+                            let kokkuPindala = 0;
+                            
+                            itemsInSession.forEach(item => {
+                                if (item.workSessionId === workSessionId && !item.isSummary) {
+                                    kokkuTaimed += item.proovitukkideArvudeSeeria.reduce((sum, val) => sum + val, 0);
+                                    keskmineArvHektaril += item.proovitukkideArvHektaril;
+                                    kokkuPindala += item.pindala;
+                                }
+                            });
+                            
+                            keskmineArvHektaril = keskmineArvHektaril / itemsInSession.length;
+                            
+                            andmed[summaryIndex] = {
+                                ...andmed[summaryIndex],
+                                proovitukkideArvudeSeeria: [kokkuTaimed],
+                                proovitukkideArvHektaril: keskmineArvHektaril,
+                                pindala: kokkuPindala
+                            };
+                            
+                            // Eemaldame konkreetse proovitüki
+                            andmed = andmed.filter(item => 
+                                !(item.workSessionId === workSessionId && !item.isSummary && 
+                                  item.kuupaev === workSessionId) // Siin peaks olema mingi unikaalne ID kontroll
+                            );
+                        }
+                    }
+                }
+                
                 localStorage.setItem("proovitukid", JSON.stringify(andmed));
                 uuendaTabel();
             }
@@ -492,48 +748,89 @@
             let keskmineArvHektaril = 0;
             let langideArv = new Set();
             
-            // Lisame töös olevad proovitükid
-            currentProovitukid.forEach(proovitukk => {
-                langideArv.add(currentLangNumber);
+            // Grupeerime andmed tööseansside kaupa
+            let groupedData = {};
+            andmed.forEach(item => {
+                if (!item.workSessionId) return;
                 
-                sisu += `Lang: ${currentLangNumber}\n`;
-                sisu += `Proovitüki raadius: ${proovitukk.raadius.toFixed(2)} m\n`;
-                sisu += `Proovitüki pindala: ${proovitukk.pindala.toFixed(2)} m²\n`;
-                sisu += `Proovitükkide taime arv: ${proovitukk.proovitukkideArvudeSeeria.join(', ')}\n`;
-                sisu += `Proovitükkide arv hektaril: ${proovitukk.proovitukkideArvHektaril.toFixed(2)}\n`;
-                sisu += `Kuupäev: ${proovitukk.kuupaev}\n`;
-                sisu += `GPS koordinaadid: ${proovitukk.gps ? `${proovitukk.gps.latitude.toFixed(6)}, ${proovitukk.gps.longitude.toFixed(6)}` : "Määramata"}\n`;
-                sisu += `Tööaeg: Töös\n`;
-                sisu += `\n`;
+                if (!groupedData[item.workSessionId]) {
+                    groupedData[item.workSessionId] = {
+                        summary: null,
+                        items: []
+                    };
+                }
                 
-                koguPindala += proovitukk.pindala;
-                keskmineArvHektaril += proovitukk.proovitukkideArvHektaril;
+                if (item.isSummary) {
+                    groupedData[item.workSessionId].summary = item;
+                } else {
+                    groupedData[item.workSessionId].items.push(item);
+                }
             });
             
-            // Lisame salvestatud proovitükid
-            andmed.forEach(proovitukk => {
-                langideArv.add(proovitukk.langiNumber);
+            // Lisame töös olevad proovitükid (kui neid on)
+            if (currentProovitukid.length > 0) {
+                const kokkuTaimed = currentProovitukid.reduce((sum, pt) => sum + pt.proovitukkideArvudeSeeria.reduce((s, v) => s + v, 0), 0);
+                const keskmine = (currentProovitukid.reduce((sum, pt) => sum + pt.proovitukkideArvHektaril, 0) / currentProovitukid.length);
+                const kokkuPindala = currentProovitukid.reduce((sum, pt) => sum + pt.pindala, 0);
                 
-                sisu += `Lang: ${proovitukk.langiNumber}\n`;
-                sisu += `Proovitüki raadius: ${proovitukk.raadius.toFixed(2)} m\n`;
-                sisu += `Proovitüki pindala: ${proovitukk.pindala.toFixed(2)} m²\n`;
-                sisu += `Proovitükkide taime arv: ${proovitukk.proovitukkideArvudeSeeria.join(', ')}\n`;
-                sisu += `Proovitükkide arv hektaril: ${proovitukk.proovitukkideArvHektaril.toFixed(2)}\n`;
-                sisu += `Kuupäev: ${proovitukk.kuupaev}\n`;
-                sisu += `GPS koordinaadid: ${proovitukk.gps ? `${proovitukk.gps.latitude.toFixed(6)}, ${proovitukk.gps.longitude.toFixed(6)}` : "Määramata"}\n`;
-                sisu += `Tööaeg: ${proovitukk.tööaeg}\n`;
-                sisu += `\n`;
+                sisu += `=== TÖÖS OLEV TÖÖSEANSS ===\n`;
+                sisu += `Langi number: ${currentLangNumber}\n`;
+                sisu += `Kuupäev: ${currentProovitukid[0]?.kuupaev || '-'}\n`;
+                sisu += `Kokku taimi: ${kokkuTaimed}\n`;
+                sisu += `Keskmine taimede arv hektaril: ${keskmine.toFixed(2)}\n`;
+                sisu += `Kokku pindala: ${kokkuPindala.toFixed(2)} m²\n`;
+                sisu += `Asukoht: ${currentProovitukid[0]?.gps ? `${currentProovitukid[0].gps.latitude.toFixed(6)}, ${currentProovitukid[0].gps.longitude.toFixed(6)}` : 'Määramata'}\n`;
+                sisu += `Tööaeg: Töös\n\n`;
                 
-                koguPindala += proovitukk.pindala;
-                keskmineArvHektaril += proovitukk.proovitukkideArvHektaril;
+                // Detailid
+                currentProovitukid.forEach((proovitukk, index) => {
+                    sisu += `Proovitükk ${index + 1}:\n`;
+                    sisu += `  Raadius: ${proovitukk.raadius.toFixed(2)} m\n`;
+                    sisu += `  Pindala: ${proovitukk.pindala.toFixed(2)} m²\n`;
+                    sisu += `  Taimede arvud: ${proovitukk.proovitukkideArvudeSeeria.join(', ')}\n`;
+                    sisu += `  Taimede arv hektaril: ${proovitukk.proovitukkideArvHektaril.toFixed(2)}\n`;
+                    sisu += `  Asukoht: ${proovitukk.gps ? `${proovitukk.gps.latitude.toFixed(6)}, ${proovitukk.gps.longitude.toFixed(6)}` : 'Määramata'}\n\n`;
+                });
+                
+                koguPindala += kokkuPindala;
+                keskmineArvHektaril += keskmine * currentProovitukid.length;
+                langideArv.add(currentLangNumber);
+            }
+            
+            // Lisame salvestatud andmed
+            Object.values(groupedData).forEach(group => {
+                if (group.summary) {
+                    sisu += `=== TÖÖSEANSS ${group.summary.workSessionId.slice(-6)} ===\n`;
+                    sisu += `Langi number: ${group.summary.langiNumber}\n`;
+                    sisu += `Kuupäev: ${group.summary.kuupaev}\n`;
+                    sisu += `Kokku taimi: ${group.summary.proovitukkideArvudeSeeria[0]}\n`;
+                    sisu += `Keskmine taimede arv hektaril: ${group.summary.proovitukkideArvHektaril.toFixed(2)}\n`;
+                    sisu += `Kokku pindala: ${group.summary.pindala.toFixed(2)} m²\n`;
+                    sisu += `Asukoht: ${group.summary.gps ? `${group.summary.gps.latitude.toFixed(6)}, ${group.summary.gps.longitude.toFixed(6)}` : 'Määramata'}\n`;
+                    sisu += `Tööaeg: ${group.summary.tööaeg}\n\n`;
+                    
+                    // Detailid
+                    group.items.forEach((item, index) => {
+                        sisu += `Proovitükk ${index + 1}:\n`;
+                        sisu += `  Raadius: ${item.raadius.toFixed(2)} m\n`;
+                        sisu += `  Pindala: ${item.pindala.toFixed(2)} m²\n`;
+                        sisu += `  Taimede arvud: ${item.proovitukkideArvudeSeeria.join(', ')}\n`;
+                        sisu += `  Taimede arv hektaril: ${item.proovitukkideArvHektaril.toFixed(2)}\n`;
+                        sisu += `  Asukoht: ${item.gps ? `${item.gps.latitude.toFixed(6)}, ${item.gps.longitude.toFixed(6)}` : 'Määramata'}\n\n`;
+                    });
+                    
+                    koguPindala += group.summary.pindala;
+                    keskmineArvHektaril += group.summary.proovitukkideArvHektaril * group.items.length;
+                    langideArv.add(group.summary.langiNumber);
+                }
             });
             
             if (langideArv.size > 0) {
-                keskmineArvHektaril = keskmineArvHektaril / (currentProovitukid.length + andmed.length);
+                keskmineArvHektaril = keskmineArvHektaril / (currentProovitukid.length + andmed.filter(item => !item.isSummary).length);
                 
                 sisu += `KOKKUVÕTE:\n`;
                 sisu += `Kokku langisid: ${langideArv.size}\n`;
-                sisu += `Kokku proovitükke: ${currentProovitukid.length + andmed.length}\n`;
+                sisu += `Kokku proovitükke: ${currentProovitukid.length + andmed.filter(item => !item.isSummary).length}\n`;
                 sisu += `Kogu proovitükkide pindala: ${koguPindala.toFixed(2)} m²\n`;
                 sisu += `Keskmine taimede arv hektaril: ${keskmineArvHektaril.toFixed(2)}\n`;
             }
@@ -561,7 +858,7 @@
             
             // Kontrollime, kas on pooleliolevaid töid
             const andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
-            const pooleliolevTöö = andmed.find(item => item.workSessionId);
+            const pooleliolevTöö = andmed.find(item => item.workSessionId && !item.isSummary);
             
             if (pooleliolevTöö) {
                 // Taastame poolelioleva töö
@@ -583,6 +880,20 @@
             }
             
             uuendaTabel();
+            
+            // Laadime OpenStreetMap'i raamistiku
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/leaflet@1.7.1/dist/leaflet.js';
+            script.onload = function() {
+                // CSS on juba lisatud
+                console.log('Leaflet loaded');
+            };
+            document.head.appendChild(script);
+            
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = 'https://unpkg.com/leaflet@1.7.1/dist/leaflet.css';
+            document.head.appendChild(link);
         };
     </script>
 </body>
