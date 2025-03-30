@@ -593,49 +593,49 @@
                 `Täpsus: ±${Math.round(lastProovitukkPosition.accuracy)} meetrit`);
         }
         
-        // Alustame tööd
-        function alustaTood() {
-            const langiNumber = document.getElementById("langiNumber").value;
-            
-            if (!langiNumber) {
-                alert("Palun sisesta langi number!");
-                return;
-            }
-            
-            currentLangNumber = langiNumber;
-            currentWorkSessionId = Date.now().toString();
-            currentProovitukid = [];
-            lastProovitukkPosition = null;
-            proovitukkMarker.setOpacity(0);
-            
-            // Aktiveerime töörežiimi
-            document.getElementById("startWorkButton").disabled = true;
-            document.getElementById("langiNumber").disabled = true;
-            document.getElementById("workInputGroup").style.display = "block";
-            document.getElementById("workInfo").style.display = "block";
-            document.getElementById("currentLangNumber").textContent = langiNumber;
-            document.getElementById("mainContainer").classList.add("active-work");
-            
-            // Määrame tänase kuupäeva
-            document.getElementById("kuupaev").value = new Date().toISOString().slice(0, 10);
-            
-            // Käivitame ajastaja
-            startTime = new Date();
-            document.getElementById("timerContainer").style.display = "block";
-            käivitaAjastaja();
-            
-            // Kui kaart pole veel lähtestatud, lähtestame
-            if (!workMap) {
-                document.getElementById("workMapContainer").style.display = "block";
-                initWorkMap();
-            }
-            
-            // Määrame langi asukoha
-            if (currentPosition) {
-                langiMarker.setLatLng([currentPosition.latitude, currentPosition.longitude]);
-                langiMarker.setOpacity(1);
-            }
-        }
+       // Alustame tööd
+function alustaTööd() {
+    const langiNumber = document.getElementById("langiNumber").value;
+    
+    if (!langiNumber) {
+        alert("Palun sisesta langi number!");
+        return;
+    }
+    
+    currentLangNumber = langiNumber;
+    currentWorkSessionId = Date.now().toString();
+    currentProovitukid = [];
+    lastProovitukkPosition = null;
+    proovitukkMarker.setOpacity(0);
+    
+    // Aktiveerime töörežiimi
+    document.getElementById("startWorkButton").disabled = true;
+    document.getElementById("langiNumber").disabled = true;
+    document.getElementById("workInputGroup").style.display = "block";
+    document.getElementById("workInfo").style.display = "block";
+    document.getElementById("currentLangNumber").textContent = langiNumber;
+    document.getElementById("mainContainer").classList.add("active-work");
+    
+    // Määrame tänase kuupäeva
+    document.getElementById("kuupaev").value = new Date().toISOString().slice(0, 10);
+    
+    // Käivitame ajastaja
+    startTime = new Date();
+    document.getElementById("timerContainer").style.display = "block";
+    käivitaAjastaja();
+    
+    // Kui kaart pole veel lähtestatud, lähtestame
+    if (!workMap) {
+        document.getElementById("workMapContainer").style.display = "block";
+        initWorkMap();
+    }
+    
+    // Määrame langi asukoha
+    if (currentPosition) {
+        langiMarker.setLatLng([currentPosition.latitude, currentPosition.longitude]);
+        langiMarker.setOpacity(1);
+    }
+}
         
         // Käivitame ajastaja
         function käivitaAjastaja() {
