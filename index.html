@@ -28,6 +28,9 @@
             font-size: 16px;
             margin: 0 10px;
         }
+        .top-button:hover {
+            background-color: #3d8b40;
+        }
         .container {
             width: 80%;
             margin: 0 auto;
@@ -36,9 +39,11 @@
             padding: 20px;
             border-radius: 5px;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            position: relative;
         }
         h2, h3, h4 {
             color: #333;
+            margin-left: 20px;
         }
         table {
             width: 100%;
@@ -54,13 +59,15 @@
         }
         th {
             background-color: #f2f2f2;
+            position: sticky;
+            top: 0;
         }
         label {
             margin: 10px 0;
             font-weight: bold;
             display: block;
         }
-        input[type="text"], input[type="number"], input[type="date"] {
+        input[type="text"], input[type="number"], input[type="date"], select {
             padding: 8px;
             margin: 5px 0 15px 0;
             border: 1px solid #ccc;
@@ -75,10 +82,15 @@
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            margin-top: 20px;
             margin-right: 10px;
         }
         button:hover {
             background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
         }
         .input-group {
             margin-bottom: 20px;
@@ -91,6 +103,21 @@
             overflow-y: auto;
             margin-bottom: 20px;
             border: 1px solid #ddd;
+        }
+        .timer-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #333;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 18px;
+            display: none;
+            z-index: 1000;
+        }
+        .active-work {
+            background-color: #fffde7;
         }
         .gps-container {
             margin-top: 15px;
@@ -115,6 +142,20 @@
         .summary-row {
             font-weight: bold;
             background-color: #e6f7ff;
+        }
+        .gps-status {
+            margin-top: 10px;
+            padding: 5px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+        .gps-active {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .gps-inactive {
+            background-color: #f44336;
+            color: white;
         }
         .proovitukk-marker {
             background-color: red;
@@ -142,12 +183,15 @@
             z-index: 1000;
             box-shadow: 0 0 5px rgba(0,0,0,0.2);
         }
-        .hidden {
-            display: none;
-        }
     </style>
 </head>
 <body>
+    <div class="timer-container" id="timerContainer">
+        <div>Tööaeg: <span id="timerDisplay">00:00:00</span></div>
+        <div>GPS: <span id="gpsStatusText" class="gps-status gps-inactive">MITTEAKTIIVNE</span></div>
+        <button id="stopWorkButton" style="margin-top: 10px; width: 100%;">Lõpeta töö</button>
+    </div>
+
     <div class="top-bar">
         <button class="top-button" onclick="location.href='index.html'">Proovitükkide arvutus</button>
         <button class="top-button" onclick="location.href='istutamine.html'">Istutamise kalkulaator</button>
@@ -159,13 +203,14 @@
         <div class="input-group">
             <label for="langiNumber">Langi number:</label>
             <input type="text" id="langiNumber">
+            
             <button id="startWorkButton" onclick="alustaTood()">Alusta töötegemist</button>
-            <div id="workInfo" class="hidden">
+            <div id="workInfo" style="display: none; margin-top: 10px;">
                 <p>Töö käib: <span id="currentLangNumber"></span></p>
             </div>
         </div>
         
-        <div class="input-group hidden" id="workInputGroup">
+        <div class="input-group" id="workInputGroup" style="display: none;">
             <h3>Proovitüki andmed</h3>
             
             <div class="gps-container">
@@ -180,9 +225,10 @@
                 <div class="coordinates-display">
                     <p>Praegune asukoht: <span id="currentCoordinates">Määramata</span></p>
                     <p>Täpsus: <span id="accuracyInfo">-</span></p>
-                    <button id="toggleGpsButton" onclick="toggleGPS()">Käivita GPS jälgimine</button>
-                    <button onclick="lisaPraeguneAsukoht()">Lisa praegune asukoht proovitükile</button>
+                    <p>Viimati uuendatud: <span id="lastUpdateTime">-</span></p>
                 </div>
+                <button id="toggleGpsButton" onclick="toggleGPS()">Käivita GPS jälgimine</button>
+                <button onclick="lisaPraeguneAsukoht()">Lisa praegune asukoht proovitükile</button>
             </div>
             
             <label for="kuupaev">Kuupäev:</label>
@@ -195,7 +241,6 @@
             <input type="number" id="taimeArv" min="0">
             
             <button onclick="lisaProovitukk()">Lisa proovitükk</button>
-            <button onclick="lõpetaTöö()">Lõpeta töö</button>
         </div>
 
         <h3>Proovitükkide andmed</h3>
@@ -210,6 +255,7 @@
                         <th>Taimede arv hektaril</th>
                         <th>Kuupäev</th>
                         <th>Koordinaadid</th>
+                        <th>Tööaeg</th>
                         <th>Tegevused</th>
                     </tr>
                 </thead>
@@ -220,14 +266,18 @@
         <button onclick="laadiAndmedTxtFailina()">Laadi andmed alla</button>
         <button onclick="kustutaAndmed()">Kustuta kõik andmed</button>
         <button onclick="naitaKaardil()">Näita kõiki proovitükke kaardil</button>
-        <button onclick="varjakaart()">Varja kaart</button>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script>
-        // Muutujad
+        // Muutujad tööaja jälgimiseks
+        let startTime;
+        let timerInterval;
         let currentLangNumber = "";
+        let currentWorkSessionId = "";
         let currentProovitukid = [];
+        
+        // Kaardi ja GPS-i muutujad
         let map;
         let userMarker;
         let langiMarker;
@@ -237,7 +287,7 @@
         let lastProovitukkPosition = null;
         let allMarkers = [];
         
-        // Kaardi initsialiseerimine
+        // Kaardi lähtestamine
         function initMap() {
             map = L.map('map').setView([58.5953, 25.0136], 13);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -250,7 +300,8 @@
                     className: 'user-marker',
                     html: '<div style="background-color: blue; width: 20px; height: 20px; border-radius: 50%;"></div>',
                     iconSize: [20, 20]
-                })
+                }),
+                zIndexOffset: 1000
             }).addTo(map);
             
             // Langi marker
@@ -259,7 +310,8 @@
                     className: 'langi-marker',
                     html: '<div style="background-color: blue; width: 20px; height: 20px; border-radius: 50%;"></div>',
                     iconSize: [20, 20]
-                })
+                }),
+                zIndexOffset: 900
             }).addTo(map);
             langiMarker.setOpacity(0);
             
@@ -269,44 +321,62 @@
                     className: 'proovitukk-marker',
                     html: '<div style="background-color: red; width: 20px; height: 20px; border-radius: 50%;"></div>',
                     iconSize: [20, 20]
-                })
+                }),
+                zIndexOffset: 800
             }).addTo(map);
             proovitukkMarker.setOpacity(0);
         }
         
-        // GPS-i jälgimine
+        // GPS-i jälgimise käivitamine/lõpetamine
         function toggleGPS() {
             const button = document.getElementById("toggleGpsButton");
             
             if (watchId) {
+                // Lõpeta jälgimine
                 navigator.geolocation.clearWatch(watchId);
                 watchId = null;
                 button.textContent = "Käivita GPS jälgimine";
+                document.getElementById("gpsStatusText").textContent = "MITTEAKTIIVNE";
+                document.getElementById("gpsStatusText").className = "gps-status gps-inactive";
             } else {
+                // Alusta jälgimist
                 if (navigator.geolocation) {
                     watchId = navigator.geolocation.watchPosition(
                         position => {
                             currentPosition = {
                                 latitude: position.coords.latitude,
                                 longitude: position.coords.longitude,
-                                accuracy: position.coords.accuracy
+                                accuracy: position.coords.accuracy,
+                                timestamp: new Date(position.timestamp)
                             };
                             
+                            // Uuenda kaarti
                             userMarker.setLatLng([currentPosition.latitude, currentPosition.longitude]);
                             map.setView([currentPosition.latitude, currentPosition.longitude], 16);
                             
+                            // Uuenda kuvatavaid andmeid
                             document.getElementById("currentCoordinates").textContent = 
                                 `${currentPosition.latitude.toFixed(6)}, ${currentPosition.longitude.toFixed(6)}`;
                             document.getElementById("accuracyInfo").textContent = 
                                 `±${Math.round(currentPosition.accuracy)} meetrit`;
+                            document.getElementById("lastUpdateTime").textContent = 
+                                new Date(currentPosition.timestamp).toLocaleTimeString();
                             
-                            button.textContent = "Peata GPS jälgimine";
+                            document.getElementById("gpsStatusText").textContent = "AKTIIVNE";
+                            document.getElementById("gpsStatusText").className = "gps-status gps-active";
                         },
                         error => {
                             alert("GPS-i jälgimine ebaõnnestus: " + error.message);
+                            document.getElementById("gpsStatusText").textContent = "VIGA";
+                            document.getElementById("gpsStatusText").className = "gps-status gps-inactive";
                         },
-                        { enableHighAccuracy: true }
+                        { 
+                            enableHighAccuracy: true,
+                            maximumAge: 10000,
+                            timeout: 5000
+                        }
                     );
+                    button.textContent = "Peata GPS jälgimine";
                 } else {
                     alert("Teie brauser ei toeta geolokatsiooni!");
                 }
@@ -319,15 +389,18 @@
                 lastProovitukkPosition = {...currentPosition};
                 proovitukkMarker.setLatLng([lastProovitukkPosition.latitude, lastProovitukkPosition.longitude]);
                 proovitukkMarker.setOpacity(1);
-                alert("Proovitüki asukoht määratud!");
+                
+                // Näita teadet
+                alert("Proovitüki asukoht määratud: " + 
+                    `${lastProovitukkPosition.latitude.toFixed(6)}, ${lastProovitukkPosition.longitude.toFixed(6)}`);
             } else {
-                alert("Palun käivita GPS jälgimine esmalt!");
+                alert("GPS asukoht pole saadaval! Käivita GPS jälgimine.");
             }
         }
         
-        // Alusta tööd
+        // Alustame tööd
         function alustaTood() {
-            const langiNumber = document.getElementById("langiNumber").value.trim();
+            const langiNumber = document.getElementById("langiNumber").value;
             
             if (!langiNumber) {
                 alert("Palun sisesta langi number!");
@@ -335,25 +408,58 @@
             }
             
             currentLangNumber = langiNumber;
+            currentWorkSessionId = Date.now().toString();
             currentProovitukid = [];
+            lastProovitukkPosition = null;
+            proovitukkMarker.setOpacity(0);
             
+            // Aktiveerime töörežiimi
             document.getElementById("startWorkButton").disabled = true;
             document.getElementById("langiNumber").disabled = true;
-            document.getElementById("workInputGroup").classList.remove("hidden");
-            document.getElementById("workInfo").classList.remove("hidden");
+            document.getElementById("workInputGroup").style.display = "block";
+            document.getElementById("workInfo").style.display = "block";
             document.getElementById("currentLangNumber").textContent = langiNumber;
+            document.getElementById("mainContainer").classList.add("active-work");
             
+            // Määrame tänase kuupäeva
             document.getElementById("kuupaev").value = new Date().toISOString().slice(0, 10);
             
-            if (!map) initMap();
+            // Käivitame ajastaja
+            startTime = new Date();
+            document.getElementById("timerContainer").style.display = "block";
+            käivitaAjastaja();
             
+            // Kui kaart pole veel lähtestatud, lähtestame
+            if (!map) {
+                initMap();
+            }
+            
+            // Määrame langi asukoha
             if (currentPosition) {
                 langiMarker.setLatLng([currentPosition.latitude, currentPosition.longitude]);
                 langiMarker.setOpacity(1);
             }
         }
         
-        // Lisa proovitükk
+        // Käivitame ajastaja
+        function käivitaAjastaja() {
+            timerInterval = setInterval(function() {
+                const currentTime = new Date();
+                const timeDiff = currentTime - startTime;
+                
+                const hours = Math.floor(timeDiff / (1000 * 60 * 60));
+                const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
+                
+                document.getElementById("timerDisplay").textContent = 
+                    `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000);
+            
+            // Seadistame töö lõpetamise nupu
+            document.getElementById("stopWorkButton").onclick = lõpetaTöö;
+        }
+        
+        // Lisame proovitüki andmed
         function lisaProovitukk() {
             const kuupaev = document.getElementById("kuupaev").value;
             const raadius = parseFloat(document.getElementById("raadius").value);
@@ -365,13 +471,14 @@
             }
 
             if (!lastProovitukkPosition) {
-                alert("Palun märgi proovitüki asukoht!");
+                alert("Palun märgi proovitüki asukoht enne lisamist!");
                 return;
             }
 
-            const pindala = Math.PI * Math.pow(raadius, 2);
-            const taimedeArvHektaril = taimeArv / pindala * 10000;
+            let pindala = Math.PI * Math.pow(raadius, 2);
+            let taimedeArvHektaril = taimeArv / pindala * 10000;
             
+            // Lisame proovitüki andmed hetkel töös oleva langi alla
             currentProovitukid.push({
                 kuupaev,
                 raadius,
@@ -382,51 +489,85 @@
                 langiGps: currentPosition ? {...currentPosition} : null
             });
             
+            // Uuendame tabelit
             uuendaTabel();
             
+            // Tühjendame väljad (v.a langi number ja GPS)
             document.getElementById("raadius").value = "";
             document.getElementById("taimeArv").value = "";
+            
+            // Peida proovitüki marker
             proovitukkMarker.setOpacity(0);
             lastProovitukkPosition = null;
         }
         
-        // Lõpeta töö
+        // Lõpetame töö ja salvestame andmed
         function lõpetaTöö() {
+            clearInterval(timerInterval);
+            document.getElementById("timerContainer").style.display = "none";
+            
+            const endTime = new Date();
+            const timeDiff = endTime - startTime;
+            const hours = Math.floor(timeDiff / (1000 * 60 * 60));
+            const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
+            const tööaeg = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
             if (currentProovitukid.length > 0) {
                 let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
-                andmed = andmed.concat(currentProovitukid.map(pt => ({
-                    ...pt,
-                    langiNumber: currentLangNumber
-                })));
+                
+                // Lisame kõik proovitükid
+                currentProovitukid.forEach(proovitukk => {
+                    andmed.push({
+                        langiNumber: currentLangNumber,
+                        kuupaev: proovitukk.kuupaev,
+                        raadius: proovitukk.raadius,
+                        pindala: proovitukk.pindala,
+                        taimeArv: proovitukk.taimeArv,
+                        taimedeArvHektaril: proovitukk.taimedeArvHektaril,
+                        gps: proovitukk.gps,
+                        langiGps: proovitukk.langiGps,
+                        tööaeg: tööaeg,
+                        workSessionId: currentWorkSessionId
+                    });
+                });
+                
                 localStorage.setItem("proovitukid", JSON.stringify(andmed));
             }
             
+            // Lõpetame GPS-i jälgimise
             if (watchId) {
                 navigator.geolocation.clearWatch(watchId);
                 watchId = null;
                 document.getElementById("toggleGpsButton").textContent = "Käivita GPS jälgimine";
+                document.getElementById("gpsStatusText").textContent = "MITTEAKTIIVNE";
+                document.getElementById("gpsStatusText").className = "gps-status gps-inactive";
             }
             
+            // Lähtestame töörežiimi
             document.getElementById("startWorkButton").disabled = false;
             document.getElementById("langiNumber").disabled = false;
-            document.getElementById("workInputGroup").classList.add("hidden");
-            document.getElementById("workInfo").classList.add("hidden");
+            document.getElementById("workInputGroup").style.display = "none";
+            document.getElementById("workInfo").style.display = "none";
+            document.getElementById("mainContainer").classList.remove("active-work");
+            
+            // Tühjendame väljad
             document.getElementById("langiNumber").value = "";
             currentProovitukid = [];
             
+            // Uuendame tabelit
             uuendaTabel();
-            naitaKaardil();
         }
         
-        // Uuenda tabelit
+        // Uuendame tabeli andmetega
         function uuendaTabel() {
             const tabel = document.getElementById("proovitukkideSisu");
             tabel.innerHTML = "";
             
             let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
             
-            // Grupeerime langide kaupa
-            const groupedData = {};
+            // Grupeerime andmed langi numbri järgi
+            let groupedData = {};
             andmed.forEach(item => {
                 if (!groupedData[item.langiNumber]) {
                     groupedData[item.langiNumber] = [];
@@ -434,10 +575,14 @@
                 groupedData[item.langiNumber].push(item);
             });
             
-            // Lisame töös olevad proovitükid
+            // Lisame töös olevad proovitükid (kui neid on)
             if (currentProovitukid.length > 0) {
                 const rida = tabel.insertRow();
                 rida.className = "summary-row";
+                const gpsText = currentProovitukid[0]?.gps ? 
+                    `${currentProovitukid[0].gps.latitude.toFixed(6)}, ${currentProovitukid[0].gps.longitude.toFixed(6)}` : 
+                    'Määramata';
+                
                 rida.innerHTML = `
                     <td>${currentLangNumber} (TÖÖS)</td>
                     <td>${currentProovitukid[0].raadius.toFixed(2)}</td>
@@ -445,76 +590,106 @@
                     <td>${currentProovitukid[0].taimeArv}</td>
                     <td>${currentProovitukid[0].taimedeArvHektaril.toFixed(2)}</td>
                     <td>${currentProovitukid[0].kuupaev}</td>
-                    <td>${currentProovitukid[0].gps.latitude.toFixed(6)}, ${currentProovitukid[0].gps.longitude.toFixed(6)}</td>
-                    <td><button onclick="kustutaProovitukk(0)">Kustuta</button></td>
+                    <td>${gpsText}</td>
+                    <td>Töös</td>
+                    <td>
+                        <button onclick="kustutaProovitukk(0)">Kustuta</button>
+                    </td>
                 `;
             }
             
             // Lisame salvestatud andmed
             Object.entries(groupedData).forEach(([langiNumber, proovitukid]) => {
-                // Kokkuvõte
+                // Kokkuvõte langi kohta
                 const kokkuRida = tabel.insertRow();
                 kokkuRida.className = "summary-row";
+                
+                const langiGps = proovitukid[0]?.langiGps;
+                const gpsText = langiGps ? 
+                    `${langiGps.latitude.toFixed(6)}, ${langiGps.longitude.toFixed(6)}` : 
+                    "Määramata";
+                
                 kokkuRida.innerHTML = `
                     <td>${langiNumber}</td>
                     <td>-</td>
                     <td>-</td>
                     <td>${proovitukid.reduce((sum, pt) => sum + pt.taimeArv, 0)}</td>
-                    <td>${(proovitukid.reduce((sum, pt) => sum + pt.taimedeArvHektaril, 0) / proovitukid.length}</td>
+                    <td>${(proovitukid.reduce((sum, pt) => sum + pt.taimedeArvHektaril, 0) / proovitukid.length).toFixed(2)}</td>
                     <td>${proovitukid[0].kuupaev}</td>
-                    <td>${proovitukid[0].langiGps ? `${proovitukid[0].langiGps.latitude.toFixed(6)}, ${proovitukid[0].langiGps.longitude.toFixed(6)}` : '-'}</td>
+                    <td>${gpsText}</td>
+                    <td>${proovitukid[0].tööaeg}</td>
                     <td>
-                        <button onclick="kustutaLangiProovitükid('${langiNumber}')">Kustuta</button>
-                        <button onclick="naitaLangiKaardil('${langiNumber}')">Kaart</button>
+                        <button onclick="kustutaLangiProovitükid('${langiNumber}')">Kustuta kõik selle langi proovitükid</button>
+                        <button onclick="naitaLangiKaardil('${langiNumber}')">Näita kaardil</button>
                     </td>
                 `;
                 
-                // Detailid
-                proovitukid.forEach((pt, idx) => {
-                    const rida = tabel.insertRow();
-                    rida.innerHTML = `
+                // Detailread
+                proovitukid.forEach((proovitukk, index) => {
+                    const detailRida = tabel.insertRow();
+                    const gpsText = proovitukk.gps ? 
+                        `${proovitukk.gps.latitude.toFixed(6)}, ${proovitukk.gps.longitude.toFixed(6)}` : 
+                        "Määramata";
+                    
+                    detailRida.innerHTML = `
                         <td>${langiNumber}</td>
-                        <td>${pt.raadius.toFixed(2)}</td>
-                        <td>${pt.pindala.toFixed(2)}</td>
-                        <td>${pt.taimeArv}</td>
-                        <td>${pt.taimedeArvHektaril.toFixed(2)}</td>
-                        <td>${pt.kuupaev}</td>
-                        <td>${pt.gps.latitude.toFixed(6)}, ${pt.gps.longitude.toFixed(6)}</td>
-                        <td><button onclick="kustutaProovitukk('${pt.langiNumber}', ${idx})">Kustuta</button></td>
+                        <td>${proovitukk.raadius.toFixed(2)}</td>
+                        <td>${proovitukk.pindala.toFixed(2)}</td>
+                        <td>${proovitukk.taimeArv}</td>
+                        <td>${proovitukk.taimedeArvHektaril.toFixed(2)}</td>
+                        <td>${proovitukk.kuupaev}</td>
+                        <td>${gpsText}</td>
+                        <td>${proovitukk.tööaeg}</td>
+                        <td>
+                            <button onclick="kustutaSalvestatudProovitukk('${proovitukk.workSessionId}')">Kustuta</button>
+                        </td>
                     `;
                 });
             });
         }
         
-        // Näita proovitükke kaardil
-        function naitaKaardil() {
-            // Kustuta vanad markerid
-            allMarkers.forEach(m => map.removeLayer(m));
+        // Kustuta töös olev proovitükk
+        function kustutaProovitukk(index) {
+            if (confirm("Kas oled kindel, et soovid selle proovitüki kustutada?")) {
+                currentProovitukid.splice(index, 1);
+                uuendaTabel();
+            }
+        }
+        
+        // Kustuta kõik langi proovitükid
+        function kustutaLangiProovitükid(langiNumber) {
+            if (confirm(`Kas oled kindel, et soovid kõik langi ${langiNumber} proovitükid kustutada?`)) {
+                let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
+                andmed = andmed.filter(item => item.langiNumber !== langiNumber);
+                localStorage.setItem("proovitukid", JSON.stringify(andmed));
+                uuendaTabel();
+            }
+        }
+        
+        // Kustuta salvestatud proovitükk
+        function kustutaSalvestatudProovitukk(workSessionId) {
+            if (confirm("Kas oled kindel, et soovid selle proovitüki kustutada?")) {
+                let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
+                andmed = andmed.filter(item => item.workSessionId !== workSessionId);
+                localStorage.setItem("proovitukid", JSON.stringify(andmed));
+                uuendaTabel();
+            }
+        }
+        
+        // Näita langi proovitükke kaardil
+        function naitaLangiKaardil(langiNumber) {
+            let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
+            let langiProovitukid = andmed.filter(item => item.langiNumber === langiNumber);
+            
+            // Kustuta eelmised markerid
+            allMarkers.forEach(marker => map.removeLayer(marker));
             allMarkers = [];
             
-            const andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
-            const proovitukid = [...andmed, ...currentProovitukid];
-            
-            if (proovitukid.length === 0) {
-                alert("Pole proovitükke kaardil kuvamiseks!");
-                return;
-            }
-            
-            // Grupeerime langide kaupa
-            const groupedData = {};
-            proovitukid.forEach(pt => {
-                if (!groupedData[pt.langiNumber]) {
-                    groupedData[pt.langiNumber] = [];
-                }
-                groupedData[pt.langiNumber].push(pt);
-            });
-            
-            // Lisame markerid
-            Object.entries(groupedData).forEach(([langiNumber, pts]) => {
-                // Langi marker
-                if (pts[0].langiGps) {
+            if (langiProovitukid.length > 0) {
+                // Kuvame langi asukoha
+                if (langiProovitukid[0].langiGps) {
                     const marker = L.marker(
-                        [pts[0].langiGps.latitude, pts[0].langiGps.longitude],
+                        [langiProovitukid[0].langiGps.latitude, langiProovitukid[0].langiGps.longitude],
                         {
                             icon: L.divIcon({
                                 className: 'langi-marker',
@@ -522,177 +697,239 @@
                                 iconSize: [20, 20]
                             })
                         }
-                    ).bindPopup(`<b>Langi ${langiNumber}</b>`).addTo(map);
+                    ).addTo(map);
+                    marker.bindPopup(`<b>Langi ${langiNumber}</b><br>Asukoht`);
+                    allMarkers.push(marker);
+                }
+                
+                // Kuvame proovitükkide asukohad
+                langiProovitukid.forEach((proovitukk, index) => {
+                    if (proovitukk.gps) {
+                        const marker = L.marker(
+                            [proovitukk.gps.latitude, proovitukk.gps.longitude],
+                            {
+                                icon: L.divIcon({
+                                    className: 'proovitukk-marker',
+                                    html: '<div style="background-color: red; width: 20px; height: 20px; border-radius: 50%;"></div>',
+                                    iconSize: [20, 20]
+                                })
+                            }
+                        ).addTo(map);
+                        marker.bindPopup(`
+                            <b>Proovitükk ${index + 1}</b><br>
+                            Langi ${langiNumber}<br>
+                            Raadius: ${proovitukk.raadius.toFixed(2)} m<br>
+                            Taimi: ${proovitukk.taimeArv}<br>
+                            Taimi/ha: ${proovitukk.taimedeArvHektaril.toFixed(2)}
+                        `);
+                        allMarkers.push(marker);
+                    }
+                });
+                
+                // Keskendame kaardi kõikidele markeritele
+                if (allMarkers.length > 0) {
+                    const group = new L.featureGroup(allMarkers);
+                    map.fitBounds(group.getBounds().pad(0.2));
+                }
+            }
+        }
+        
+        // Näita kõiki proovitükke kaardil
+        function naitaKaardil() {
+            let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
+            
+            // Kustuta eelmised markerid
+            allMarkers.forEach(marker => map.removeLayer(marker));
+            allMarkers = [];
+            
+            // Grupeerime andmed langi numbri järgi
+            let groupedData = {};
+            andmed.forEach(item => {
+                if (!groupedData[item.langiNumber]) {
+                    groupedData[item.langiNumber] = [];
+                }
+                groupedData[item.langiNumber].push(item);
+            });
+            
+            // Lisame markerid iga langi jaoks
+            Object.entries(groupedData).forEach(([langiNumber, proovitukid]) => {
+                // Langi marker
+                if (proovitukid[0].langiGps) {
+                    const marker = L.marker(
+                        [proovitukid[0].langiGps.latitude, proovitukid[0].langiGps.longitude],
+                        {
+                            icon: L.divIcon({
+                                className: 'langi-marker',
+                                html: '<div style="background-color: blue; width: 20px; height: 20px; border-radius: 50%;"></div>',
+                                iconSize: [20, 20]
+                            })
+                        }
+                    ).addTo(map);
+                    marker.bindPopup(`<b>Langi ${langiNumber}</b><br>Asukoht`);
                     allMarkers.push(marker);
                 }
                 
                 // Proovitükkide markerid
-                pts.forEach((pt, idx) => {
-                    const marker = L.marker(
-                        [pt.gps.latitude, pt.gps.longitude],
-                        {
-                            icon: L.divIcon({
-                                className: 'proovitukk-marker',
-                                html: '<div style="background-color: red; width: 20px; height: 20px; border-radius: 50%;"></div>',
-                                iconSize: [20, 20]
-                            })
-                        }
-                    ).bindPopup(`
-                        <b>Langi ${langiNumber}</b><br>
-                        Proovitükk ${idx + 1}<br>
-                        Raadius: ${pt.raadius.toFixed(2)} m<br>
-                        Taimi: ${pt.taimeArv}<br>
-                        Taimi/ha: ${pt.taimedeArvHektaril.toFixed(2)}
-                    `).addTo(map);
-                    allMarkers.push(marker);
+                proovitukid.forEach((proovitukk, index) => {
+                    if (proovitukk.gps) {
+                        const marker = L.marker(
+                            [proovitukk.gps.latitude, proovitukk.gps.longitude],
+                            {
+                                icon: L.divIcon({
+                                    className: 'proovitukk-marker',
+                                    html: '<div style="background-color: red; width: 20px; height: 20px; border-radius: 50%;"></div>',
+                                    iconSize: [20, 20]
+                                })
+                            }
+                        ).addTo(map);
+                        marker.bindPopup(`
+                            <b>Proovitükk ${index + 1}</b><br>
+                            Langi ${langiNumber}<br>
+                            Raadius: ${proovitukk.raadius.toFixed(2)} m<br>
+                            Taimi: ${proovitukk.taimeArv}<br>
+                            Taimi/ha: ${proovitukk.taimedeArvHektaril.toFixed(2)}
+                        `);
+                        allMarkers.push(marker);
+                    }
                 });
             });
             
-            // Keskendame markeritele
+            // Keskendame kaardi kõikidele markeritele
             if (allMarkers.length > 0) {
                 const group = new L.featureGroup(allMarkers);
                 map.fitBounds(group.getBounds().pad(0.2));
+            } else {
+                alert("Pole proovitükke kaardil kuvamiseks!");
             }
         }
         
-        // Näita ühe langi proovitükke kaardil
-        function naitaLangiKaardil(langiNumber) {
-            allMarkers.forEach(m => map.removeLayer(m));
-            allMarkers = [];
+        // Laadi andmed alla tekstifailina
+        function laadiAndmedTxtFailina() {
+            let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
             
-            const andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
-            const proovitukid = [...andmed, ...currentProovitukid].filter(pt => pt.langiNumber === langiNumber);
-            
-            if (proovitukid.length === 0) return;
-            
-            // Langi marker
-            if (proovitukid[0].langiGps) {
-                const marker = L.marker(
-                    [proovitukid[0].langiGps.latitude, proovitukid[0].langiGps.longitude],
-                    {
-                        icon: L.divIcon({
-                            className: 'langi-marker',
-                            html: '<div style="background-color: blue; width: 20px; height: 20px; border-radius: 50%;"></div>',
-                            iconSize: [20, 20]
-                        })
-                    }
-                ).bindPopup(`<b>Langi ${langiNumber}</b>`).addTo(map);
-                allMarkers.push(marker);
+            if (andmed.length === 0 && currentProovitukid.length === 0) {
+                alert("Pole andmeid allalaadimiseks!");
+                return;
             }
             
-            // Proovitükkide markerid
-            proovitukid.forEach((pt, idx) => {
-                const marker = L.marker(
-                    [pt.gps.latitude, pt.gps.longitude],
-                    {
-                        icon: L.divIcon({
-                            className: 'proovitukk-marker',
-                            html: '<div style="background-color: red; width: 20px; height: 20px; border-radius: 50%;"></div>',
-                            iconSize: [20, 20]
-                        })
-                    }
-                ).bindPopup(`
-                    <b>Langi ${langiNumber}</b><br>
-                    Proovitükk ${idx + 1}<br>
-                    Raadius: ${pt.raadius.toFixed(2)} m<br>
-                    Taimi: ${pt.taimeArv}<br>
-                    Taimi/ha: ${pt.taimedeArvHektaril.toFixed(2)}
-                `).addTo(map);
-                allMarkers.push(marker);
+            let sisu = "Proovitükkide andmed\n\n";
+            let koguPindala = 0;
+            let keskmineArvHektaril = 0;
+            let langideArv = new Set();
+            
+            // Grupeerime andmed langi numbri järgi
+            let groupedData = {};
+            andmed.forEach(item => {
+                if (!groupedData[item.langiNumber]) {
+                    groupedData[item.langiNumber] = [];
+                }
+                groupedData[item.langiNumber].push(item);
             });
             
-            if (allMarkers.length > 0) {
-                const group = new L.featureGroup(allMarkers);
-                map.fitBounds(group.getBounds().pad(0.2));
+            // Lisame töös olevad proovitükid (kui neid on)
+            if (currentProovitukid.length > 0) {
+                sisu += `=== TÖÖS OLEVAD PROOVITÜKID ===\n`;
+                sisu += `Langi number: ${currentLangNumber}\n`;
+                sisu += `Kuupäev: ${currentProovitukid[0]?.kuupaev || '-'}\n`;
+                sisu += `Proovitükkide arv: ${currentProovitukid.length}\n`;
+                sisu += `Kokku taimi: ${currentProovitukid.reduce((sum, pt) => sum + pt.taimeArv, 0)}\n`;
+                sisu += `Keskmine taimede arv hektaril: ${(currentProovitukid.reduce((sum, pt) => sum + pt.taimedeArvHektaril, 0) / currentProovitukid.length).toFixed(2)}\n\n`;
+                
+                currentProovitukid.forEach((proovitukk, index) => {
+                    sisu += `Proovitükk ${index + 1}:\n`;
+                    sisu += `  Raadius: ${proovitukk.raadius.toFixed(2)} m\n`;
+                    sisu += `  Pindala: ${proovitukk.pindala.toFixed(2)} m²\n`;
+                    sisu += `  Taimede arv: ${proovitukk.taimeArv}\n`;
+                    sisu += `  Taimede arv hektaril: ${proovitukk.taimedeArvHektaril.toFixed(2)}\n`;
+                    sisu += `  Asukoht: ${proovitukk.gps ? `${proovitukk.gps.latitude.toFixed(6)}, ${proovitukk.gps.longitude.toFixed(6)}` : 'Määramata'}\n\n`;
+                });
+                
+                koguPindala += currentProovitukid.reduce((sum, pt) => sum + pt.pindala, 0);
+                keskmineArvHektaril += currentProovitukid.reduce((sum, pt) => sum + pt.taimedeArvHektaril, 0);
+                langideArv.add(currentLangNumber);
             }
-        }
-        
-        // Varja kaart
-        function varjakaart() {
-            allMarkers.forEach(m => map.removeLayer(m));
-            allMarkers = [];
-            proovitukkMarker.setOpacity(0);
-            langiMarker.setOpacity(0);
-        }
-        
-        // Kustuta proovitükk
-        function kustutaProovitukk(langiNumber, index) {
-            if (confirm("Kas oled kindel, et soovid selle proovitüki kustutada?")) {
-                let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
-                andmed = andmed.filter((pt, idx) => !(pt.langiNumber === langiNumber && idx === index));
-                localStorage.setItem("proovitukid", JSON.stringify(andmed));
-                uuendaTabel();
-                naitaKaardil();
+            
+            // Lisame salvestatud andmed
+            Object.entries(groupedData).forEach(([langiNumber, proovitukid]) => {
+                sisu += `=== LANGI ${langiNumber} PROOVITÜKID ===\n`;
+                sisu += `Kuupäev: ${proovitukid[0].kuupaev}\n`;
+                sisu += `Proovitükkide arv: ${proovitukid.length}\n`;
+                sisu += `Kokku taimi: ${proovitukid.reduce((sum, pt) => sum + pt.taimeArv, 0)}\n`;
+                sisu += `Keskmine taimede arv hektaril: ${(proovitukid.reduce((sum, pt) => sum + pt.taimedeArvHektaril, 0) / proovitukid.length).toFixed(2)}\n`;
+                sisu += `Langi asukoht: ${proovitukid[0].langiGps ? `${proovitukid[0].langiGps.latitude.toFixed(6)}, ${proovitukid[0].langiGps.longitude.toFixed(6)}` : 'Määramata'}\n\n`;
+                
+                proovitukid.forEach((proovitukk, index) => {
+                    sisu += `Proovitükk ${index + 1}:\n`;
+                    sisu += `  Raadius: ${proovitukk.raadius.toFixed(2)} m\n`;
+                    sisu += `  Pindala: ${proovitukk.pindala.toFixed(2)} m²\n`;
+                    sisu += `  Taimede arv: ${proovitukk.taimeArv}\n`;
+                    sisu += `  Taimede arv hektaril: ${proovitukk.taimedeArvHektaril.toFixed(2)}\n`;
+                    sisu += `  Asukoht: ${proovitukk.gps ? `${proovitukk.gps.latitude.toFixed(6)}, ${proovitukk.gps.longitude.toFixed(6)}` : 'Määramata'}\n\n`;
+                });
+                
+                koguPindala += proovitukid.reduce((sum, pt) => sum + pt.pindala, 0);
+                keskmineArvHektaril += proovitukid.reduce((sum, pt) => sum + pt.taimedeArvHektaril, 0);
+                langideArv.add(langiNumber);
+            });
+            
+            if (langideArv.size > 0) {
+                keskmineArvHektaril = keskmineArvHektaril / (currentProovitukid.length + andmed.length);
+                
+                sisu += `KOKKUVÕTE:\n`;
+                sisu += `Kokku langisid: ${langideArv.size}\n`;
+                sisu += `Kokku proovitükke: ${currentProovitukid.length + andmed.length}\n`;
+                sisu += `Kogu proovitükkide pindala: ${koguPindala.toFixed(2)} m²\n`;
+                sisu += `Keskmine taimede arv hektaril: ${keskmineArvHektaril.toFixed(2)}\n`;
             }
-        }
-        
-        // Kustuta langi proovitükid
-        function kustutaLangiProovitükid(langiNumber) {
-            if (confirm(`Kas oled kindel, et soovid kõik langi ${langiNumber} proovitükid kustutada?`)) {
-                let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
-                andmed = andmed.filter(pt => pt.langiNumber !== langiNumber);
-                localStorage.setItem("proovitukid", JSON.stringify(andmed));
-                uuendaTabel();
-                naitaKaardil();
-            }
+            
+            const blob = new Blob([sisu], { type: "text/plain" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `proovitukkide_andmed_${new Date().toISOString().slice(0,10)}.txt`;
+            link.click();
         }
         
         // Kustuta kõik andmed
         function kustutaAndmed() {
             if (confirm("Kas oled kindel, et soovid kõik andmed kustutada?")) {
                 localStorage.removeItem("proovitukid");
+                currentProovitukid = [];
                 uuendaTabel();
-                varjakaart();
             }
         }
         
-        // Laadi andmed alla
-        function laadiAndmedTxtFailina() {
-            const andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
-            if (andmed.length === 0) {
-                alert("Pole andmeid allalaadimiseks!");
-                return;
-            }
-            
-            let sisu = "Proovitükkide andmed\n\n";
-            
-            // Grupeerime langide kaupa
-            const groupedData = {};
-            andmed.forEach(pt => {
-                if (!groupedData[pt.langiNumber]) {
-                    groupedData[pt.langiNumber] = [];
-                }
-                groupedData[pt.langiNumber].push(pt);
-            });
-            
-            Object.entries(groupedData).forEach(([langiNumber, pts]) => {
-                sisu += `=== LANGI ${langiNumber} ===\n`;
-                sisu += `Proovitükkide arv: ${pts.length}\n`;
-                sisu += `Kokku taimi: ${pts.reduce((sum, pt) => sum + pt.taimeArv, 0)}\n`;
-                sisu += `Keskmine taimi/ha: ${(pts.reduce((sum, pt) => sum + pt.taimedeArvHektaril, 0) / pts.length}\n\n`;
-                
-                pts.forEach((pt, idx) => {
-                    sisu += `Proovitükk ${idx + 1}:\n`;
-                    sisu += `  Raadius: ${pt.raadius.toFixed(2)} m\n`;
-                    sisu += `  Pindala: ${pt.pindala.toFixed(2)} m²\n`;
-                    sisu += `  Taimi: ${pt.taimeArv}\n`;
-                    sisu += `  Taimi/ha: ${pt.taimedeArvHektaril.toFixed(2)}\n`;
-                    sisu += `  Koordinaadid: ${pt.gps.latitude.toFixed(6)}, ${pt.gps.longitude.toFixed(6)}\n\n`;
-                });
-            });
-            
-            const blob = new Blob([sisu], { type: "text/plain" });
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            link.download = `proovitükid_${new Date().toISOString().slice(0,10)}.txt`;
-            link.click();
-        }
-        
-        // Lehe laadimisel
+        // Laadime salvestatud andmed lehe avamisel
         window.onload = function() {
+            // Määra tänane kuupäev vaikeväärtuseks
             document.getElementById("kuupaev").value = new Date().toISOString().slice(0, 10);
-            initMap();
+            
+            // Kontrollime, kas on pooleliolevaid töid
+            const andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
+            const pooleliolevTöö = andmed.find(item => item.workSessionId);
+            
+            if (pooleliolevTöö) {
+                // Taastame poolelioleva töö
+                currentLangNumber = pooleliolevTöö.langiNumber;
+                currentWorkSessionId = pooleliolevTöö.workSessionId;
+                startTime = new Date(pooleliolevTöö.startTime);
+                
+                // Aktiveerime töörežiimi
+                document.getElementById("startWorkButton").disabled = true;
+                document.getElementById("langiNumber").disabled = true;
+                document.getElementById("workInputGroup").style.display = "block";
+                document.getElementById("workInfo").style.display = "block";
+                document.getElementById("currentLangNumber").textContent = currentLangNumber;
+                document.getElementById("mainContainer").classList.add("active-work");
+                
+                // Käivitame ajastaja
+                document.getElementById("timerContainer").style.display = "block";
+                käivitaAjastaja();
+            }
+            
             uuendaTabel();
+            
+            // Initsialiseerime kaardi
+            initMap();
         };
     </script>
 </body>
