@@ -130,6 +130,7 @@
             margin-top: 15px;
             border: 1px solid #ddd;
             position: relative;
+            display: none; /* Algselt peidetud */
         }
         #map {
             height: 100%;
@@ -189,6 +190,12 @@
             background-color: #f0f8ff;
             border-radius: 5px;
         }
+        .map-view-container {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
@@ -221,8 +228,8 @@
             
             <div class="gps-container">
                 <h4>Asukoha jälgimine</h4>
-                <div class="map-container">
-                    <div id="map"></div>
+                <div class="map-container" id="workMapContainer">
+                    <div id="workMap"></div>
                     <div class="map-legend">
                         <div><span class="langi-marker"></span> Langi asukoht</div>
                         <div><span class="proovitukk-marker"></span> Proovitüki asukoht</div>
@@ -273,10 +280,21 @@
             <h3>Kokkuvõte</h3>
             <p id="kokkuvoteTekst">Proovitükke pole veel lisatud.</p>
         </div>
+
+        <div class="map-view-container" id="mapViewContainer" style="display: none;">
+            <h3>Proovitükkide asukohad kaardil</h3>
+            <div class="map-container" id="viewMapContainer">
+                <div id="viewMap"></div>
+                <div class="map-legend">
+                    <div><span class="langi-marker"></span> Langi asukoht</div>
+                    <div><span class="proovitukk-marker"></span> Proovitüki asukoht</div>
+                </div>
+            </div>
+        </div>
         
         <button onclick="laadiAndmedTxtFailina()">Laadi andmed alla</button>
         <button onclick="kustutaAndmed()">Kustuta kõik andmed</button>
-        <button onclick="naitaKaardil()">Näita kõiki proovitükke kaardil</button>
+        <button onclick="naitaKaardil()">Näita proovitükke kaardil</button>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
@@ -289,7 +307,8 @@
         let currentProovitukid = [];
         
         // Kaardi ja GPS-i muutujad
-        let map;
+        let workMap; // Töö ajal kasutatav kaart
+        let viewMap; // Proovitükkide vaatamise kaart
         let userMarker;
         let langiMarker;
         let proovitukkMarker;
@@ -298,12 +317,12 @@
         let lastProovitukkPosition = null;
         let allMarkers = [];
         
-        // Kaardi lähtestamine
-        function initMap() {
-            map = L.map('map').setView([58.5953, 25.0136], 13);
+        // Kaardi lähtestamine töö jaoks
+        function initWorkMap() {
+            workMap = L.map('workMap').setView([58.5953, 25.0136], 13);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(map);
+            }).addTo(workMap);
             
             // Kasutaja marker
             userMarker = L.marker([58.5953, 25.0136], {
@@ -313,7 +332,7 @@
                     iconSize: [20, 20]
                 }),
                 zIndexOffset: 1000
-            }).addTo(map);
+            }).addTo(workMap);
             
             // Langi marker
             langiMarker = L.marker([58.5953, 25.0136], {
@@ -323,7 +342,7 @@
                     iconSize: [20, 20]
                 }),
                 zIndexOffset: 900
-            }).addTo(map);
+            }).addTo(workMap);
             langiMarker.setOpacity(0);
             
             // Proovitüki marker
@@ -334,8 +353,16 @@
                     iconSize: [20, 20]
                 }),
                 zIndexOffset: 800
-            }).addTo(map);
+            }).addTo(workMap);
             proovitukkMarker.setOpacity(0);
+        }
+        
+        // Kaardi lähtestamine vaatamise jaoks
+        function initViewMap() {
+            viewMap = L.map('viewMap').setView([58.5953, 25.0136], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(viewMap);
         }
         
         // GPS-i jälgimise käivitamine/lõpetamine
@@ -363,7 +390,7 @@
                             
                             // Uuenda kaarti
                             userMarker.setLatLng([currentPosition.latitude, currentPosition.longitude]);
-                            map.setView([currentPosition.latitude, currentPosition.longitude], 16);
+                            workMap.setView([currentPosition.latitude, currentPosition.longitude], 16);
                             
                             // Uuenda kuvatavaid andmeid
                             document.getElementById("currentCoordinates").textContent = 
@@ -447,8 +474,9 @@
             käivitaAjastaja();
             
             // Kui kaart pole veel lähtestatud, lähtestame
-            if (!map) {
-                initMap();
+            if (!workMap) {
+                document.getElementById("workMapContainer").style.display = "block";
+                initWorkMap();
             }
             
             // Määrame langi asukoha
@@ -635,6 +663,9 @@
             // Uuendame tabelit ja kokkuvõtet
             uuendaTabel();
             uuendaKokkuvote();
+            
+            // Peidame töökaardi
+            document.getElementById("workMapContainer").style.display = "none";
         }
         
         // Uuendame tabeli andmetega
@@ -768,7 +799,7 @@
             let langiProovitukid = andmed.filter(item => item.langiNumber === langiNumber);
             
             // Kustuta eelmised markerid
-            allMarkers.forEach(marker => map.removeLayer(marker));
+            allMarkers.forEach(marker => viewMap.removeLayer(marker));
             allMarkers = [];
             
             if (langiProovitukid.length > 0) {
@@ -783,7 +814,7 @@
                                 iconSize: [20, 20]
                             })
                         }
-                    ).addTo(map);
+                    ).addTo(viewMap);
                     marker.bindPopup(`<b>Langi ${langiNumber}</b><br>Asukoht`);
                     allMarkers.push(marker);
                 }
@@ -800,13 +831,15 @@
                                     iconSize: [20, 20]
                                 })
                             }
-                        ).addTo(map);
+                        ).addTo(viewMap);
                         marker.bindPopup(`
                             <b>Proovitükk ${index + 1}</b><br>
                             Langi ${langiNumber}<br>
                             Raadius: ${proovitukk.raadius.toFixed(2)} m<br>
+                            Pindala: ${proovitukk.pindala.toFixed(2)} m²<br>
                             Taimi: ${proovitukk.taimeArv}<br>
-                            Taimi/ha: ${proovitukk.taimedeArvHektaril.toFixed(2)}
+                            Taimi/ha: ${proovitukk.taimedeArvHektaril.toFixed(2)}<br>
+                            Kuupäev: ${proovitukk.kuupaev}
                         `);
                         allMarkers.push(marker);
                     }
@@ -815,17 +848,27 @@
                 // Keskendame kaardi kõikidele markeritele
                 if (allMarkers.length > 0) {
                     const group = new L.featureGroup(allMarkers);
-                    map.fitBounds(group.getBounds().pad(0.2));
+                    viewMap.fitBounds(group.getBounds().pad(0.2));
                 }
             }
         }
         
         // Näita kõiki proovitükke kaardil
         function naitaKaardil() {
+            // Kui vaatekaart pole veel lähtestatud, teeme seda
+            if (!viewMap) {
+                document.getElementById("mapViewContainer").style.display = "block";
+                document.getElementById("viewMapContainer").style.display = "block";
+                initViewMap();
+            } else {
+                document.getElementById("mapViewContainer").style.display = "block";
+                document.getElementById("viewMapContainer").style.display = "block";
+            }
+            
             let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
             
             // Kustuta eelmised markerid
-            allMarkers.forEach(marker => map.removeLayer(marker));
+            allMarkers.forEach(marker => viewMap.removeLayer(marker));
             allMarkers = [];
             
             // Grupeerime andmed langi numbri järgi
@@ -850,7 +893,7 @@
                                 iconSize: [20, 20]
                             })
                         }
-                    ).addTo(map);
+                    ).addTo(viewMap);
                     marker.bindPopup(`<b>Langi ${langiNumber}</b><br>Asukoht`);
                     allMarkers.push(marker);
                 }
@@ -867,13 +910,15 @@
                                     iconSize: [20, 20]
                                 })
                             }
-                        ).addTo(map);
+                        ).addTo(viewMap);
                         marker.bindPopup(`
                             <b>Proovitükk ${index + 1}</b><br>
                             Langi ${langiNumber}<br>
                             Raadius: ${proovitukk.raadius.toFixed(2)} m<br>
+                            Pindala: ${proovitukk.pindala.toFixed(2)} m²<br>
                             Taimi: ${proovitukk.taimeArv}<br>
-                            Taimi/ha: ${proovitukk.taimedeArvHektaril.toFixed(2)}
+                            Taimi/ha: ${proovitukk.taimedeArvHektaril.toFixed(2)}<br>
+                            Kuupäev: ${proovitukk.kuupaev}
                         `);
                         allMarkers.push(marker);
                     }
@@ -893,7 +938,7 @@
                                 iconSize: [20, 20]
                             })
                         }
-                    ).addTo(map);
+                    ).addTo(viewMap);
                     marker.bindPopup(`<b>Langi ${currentLangNumber} (TÖÖS)</b><br>Asukoht`);
                     allMarkers.push(marker);
                 }
@@ -910,13 +955,15 @@
                                     iconSize: [20, 20]
                                 })
                             }
-                        ).addTo(map);
+                        ).addTo(viewMap);
                         marker.bindPopup(`
                             <b>Proovitükk ${index + 1} (TÖÖS)</b><br>
                             Langi ${currentLangNumber}<br>
                             Raadius: ${proovitukk.raadius.toFixed(2)} m<br>
+                            Pindala: ${proovitukk.pindala.toFixed(2)} m²<br>
                             Taimi: ${proovitukk.taimeArv}<br>
-                            Taimi/ha: ${proovitukk.taimedeArvHektaril.toFixed(2)}
+                            Taimi/ha: ${proovitukk.taimedeArvHektaril.toFixed(2)}<br>
+                            Kuupäev: ${proovitukk.kuupaev}
                         `);
                         allMarkers.push(marker);
                     }
@@ -926,7 +973,7 @@
             // Keskendame kaardi kõikidele markeritele
             if (allMarkers.length > 0) {
                 const group = new L.featureGroup(allMarkers);
-                map.fitBounds(group.getBounds().pad(0.2));
+                viewMap.fitBounds(group.getBounds().pad(0.2));
             } else {
                 alert("Pole proovitükke kaardil kuvamiseks!");
             }
@@ -1059,8 +1106,11 @@
             uuendaTabel();
             uuendaKokkuvote();
             
-            // Initsialiseerime kaardi
-            initMap();
+            // Initsialiseerime töökaardi (kui vaja)
+            if (pooleliolevTöö) {
+                document.getElementById("workMapContainer").style.display = "block";
+                initWorkMap();
+            }
         };
     </script>
 </body>
