@@ -183,6 +183,12 @@
             z-index: 1000;
             box-shadow: 0 0 5px rgba(0,0,0,0.2);
         }
+        .summary-section {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f0f8ff;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
@@ -261,6 +267,11 @@
                 </thead>
                 <tbody id="proovitukkideSisu"></tbody>
             </table>
+        </div>
+        
+        <div class="summary-section" id="kokkuvoteSection">
+            <h3>Kokkuvõte</h3>
+            <p id="kokkuvoteTekst">Proovitükke pole veel lisatud.</p>
         </div>
         
         <button onclick="laadiAndmedTxtFailina()">Laadi andmed alla</button>
@@ -364,6 +375,12 @@
                             
                             document.getElementById("gpsStatusText").textContent = "AKTIIVNE";
                             document.getElementById("gpsStatusText").className = "gps-status gps-active";
+                            
+                            // Kui langi marker on veel nähtamatu, määrame selle asukoha
+                            if (langiMarker.getOpacity() === 0 && currentLangNumber) {
+                                langiMarker.setLatLng([currentPosition.latitude, currentPosition.longitude]);
+                                langiMarker.setOpacity(1);
+                            }
                         },
                         error => {
                             alert("GPS-i jälgimine ebaõnnestus: " + error.message);
@@ -486,11 +503,13 @@
                 taimeArv,
                 taimedeArvHektaril,
                 gps: {...lastProovitukkPosition},
-                langiGps: currentPosition ? {...currentPosition} : null
+                langiGps: currentPosition ? {...currentPosition} : null,
+                workSessionId: currentWorkSessionId
             });
             
-            // Uuendame tabelit
+            // Uuendame tabelit ja kokkuvõtet
             uuendaTabel();
+            uuendaKokkuvote();
             
             // Tühjendame väljad (v.a langi number ja GPS)
             document.getElementById("raadius").value = "";
@@ -499,6 +518,64 @@
             // Peida proovitüki marker
             proovitukkMarker.setOpacity(0);
             lastProovitukkPosition = null;
+        }
+        
+        // Uuendame kokkuvõtet
+        function uuendaKokkuvote() {
+            let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
+            let kokkuProovitukke = andmed.length + currentProovitukid.length;
+            
+            if (kokkuProovitukke === 0) {
+                document.getElementById("kokkuvoteTekst").textContent = "Proovitükke pole veel lisatud.";
+                return;
+            }
+            
+            // Loeme erinevad langid
+            let langid = new Set();
+            andmed.forEach(item => langid.add(item.langiNumber));
+            if (currentProovitukid.length > 0) langid.add(currentLangNumber);
+            
+            // Arvutame kogupindala ja keskmise tiheduse
+            let koguPindala = 0;
+            let keskmineTihedus = 0;
+            
+            andmed.forEach(item => {
+                koguPindala += item.pindala;
+                keskmineTihedus += item.taimedeArvHektaril;
+            });
+            
+            currentProovitukid.forEach(item => {
+                koguPindala += item.pindala;
+                keskmineTihedus += item.taimedeArvHektaril;
+            });
+            
+            keskmineTihedus = keskmineTihedus / kokkuProovitukke;
+            
+            // Loome kokkuvõtte teksti
+            let kokkuvote = `Kokku langisid: ${langid.size}\n`;
+            kokkuvote += `Kokku proovitükke: ${kokkuProovitukke}\n`;
+            kokkuvote += `Kogu proovitükkide pindala: ${koguPindala.toFixed(2)} m² (${(koguPindala/10000).toFixed(4)} ha)\n`;
+            kokkuvote += `Keskmine taimede arv hektaril: ${keskmineTihedus.toFixed(2)}`;
+            
+            // Kui on töös olev lang, lisame selle kohta eraldi info
+            if (currentProovitukid.length > 0) {
+                let langiPindala = 0;
+                let langiTihedus = 0;
+                
+                currentProovitukid.forEach(item => {
+                    langiPindala += item.pindala;
+                    langiTihedus += item.taimedeArvHektaril;
+                });
+                
+                langiTihedus = langiTihedus / currentProovitukid.length;
+                
+                kokkuvote += `\n\nPraegu töös olev lang ${currentLangNumber}:\n`;
+                kokkuvote += `Proovitükke: ${currentProovitukid.length}\n`;
+                kokkuvote += `Pindala: ${langiPindala.toFixed(2)} m²\n`;
+                kokkuvote += `Keskmine tihedus: ${langiTihedus.toFixed(2)} taimed/ha`;
+            }
+            
+            document.getElementById("kokkuvoteTekst").innerHTML = kokkuvote.replace(/\n/g, '<br>');
         }
         
         // Lõpetame töö ja salvestame andmed
@@ -555,8 +632,9 @@
             document.getElementById("langiNumber").value = "";
             currentProovitukid = [];
             
-            // Uuendame tabelit
+            // Uuendame tabelit ja kokkuvõtet
             uuendaTabel();
+            uuendaKokkuvote();
         }
         
         // Uuendame tabeli andmetega
@@ -577,25 +655,30 @@
             
             // Lisame töös olevad proovitükid (kui neid on)
             if (currentProovitukid.length > 0) {
-                const rida = tabel.insertRow();
-                rida.className = "summary-row";
-                const gpsText = currentProovitukid[0]?.gps ? 
-                    `${currentProovitukid[0].gps.latitude.toFixed(6)}, ${currentProovitukid[0].gps.longitude.toFixed(6)}` : 
-                    'Määramata';
-                
-                rida.innerHTML = `
-                    <td>${currentLangNumber} (TÖÖS)</td>
-                    <td>${currentProovitukid[0].raadius.toFixed(2)}</td>
-                    <td>${currentProovitukid[0].pindala.toFixed(2)}</td>
-                    <td>${currentProovitukid[0].taimeArv}</td>
-                    <td>${currentProovitukid[0].taimedeArvHektaril.toFixed(2)}</td>
-                    <td>${currentProovitukid[0].kuupaev}</td>
-                    <td>${gpsText}</td>
-                    <td>Töös</td>
-                    <td>
-                        <button onclick="kustutaProovitukk(0)">Kustuta</button>
-                    </td>
-                `;
+                currentProovitukid.forEach((proovitukk, index) => {
+                    const rida = tabel.insertRow();
+                    if (index === 0) {
+                        rida.className = "summary-row";
+                    }
+                    
+                    const gpsText = proovitukk.gps ? 
+                        `${proovitukk.gps.latitude.toFixed(6)}, ${proovitukk.gps.longitude.toFixed(6)}` : 
+                        'Määramata';
+                    
+                    rida.innerHTML = `
+                        <td>${currentLangNumber}${index === 0 ? ' (TÖÖS)' : ''}</td>
+                        <td>${proovitukk.raadius.toFixed(2)}</td>
+                        <td>${proovitukk.pindala.toFixed(2)}</td>
+                        <td>${proovitukk.taimeArv}</td>
+                        <td>${proovitukk.taimedeArvHektaril.toFixed(2)}</td>
+                        <td>${proovitukk.kuupaev}</td>
+                        <td>${gpsText}</td>
+                        <td>Töös</td>
+                        <td>
+                            <button onclick="kustutaProovitukk(${index})">Kustuta</button>
+                        </td>
+                    `;
+                });
             }
             
             // Lisame salvestatud andmed
@@ -653,6 +736,7 @@
             if (confirm("Kas oled kindel, et soovid selle proovitüki kustutada?")) {
                 currentProovitukid.splice(index, 1);
                 uuendaTabel();
+                uuendaKokkuvote();
             }
         }
         
@@ -663,6 +747,7 @@
                 andmed = andmed.filter(item => item.langiNumber !== langiNumber);
                 localStorage.setItem("proovitukid", JSON.stringify(andmed));
                 uuendaTabel();
+                uuendaKokkuvote();
             }
         }
         
@@ -673,6 +758,7 @@
                 andmed = andmed.filter(item => item.workSessionId !== workSessionId);
                 localStorage.setItem("proovitukid", JSON.stringify(andmed));
                 uuendaTabel();
+                uuendaKokkuvote();
             }
         }
         
@@ -794,6 +880,49 @@
                 });
             });
             
+            // Lisame töös olevad proovitükid (kui neid on)
+            if (currentProovitukid.length > 0) {
+                // Langi marker
+                if (currentPosition) {
+                    const marker = L.marker(
+                        [currentPosition.latitude, currentPosition.longitude],
+                        {
+                            icon: L.divIcon({
+                                className: 'langi-marker',
+                                html: '<div style="background-color: blue; width: 20px; height: 20px; border-radius: 50%;"></div>',
+                                iconSize: [20, 20]
+                            })
+                        }
+                    ).addTo(map);
+                    marker.bindPopup(`<b>Langi ${currentLangNumber} (TÖÖS)</b><br>Asukoht`);
+                    allMarkers.push(marker);
+                }
+                
+                // Proovitükkide markerid
+                currentProovitukid.forEach((proovitukk, index) => {
+                    if (proovitukk.gps) {
+                        const marker = L.marker(
+                            [proovitukk.gps.latitude, proovitukk.gps.longitude],
+                            {
+                                icon: L.divIcon({
+                                    className: 'proovitukk-marker',
+                                    html: '<div style="background-color: red; width: 20px; height: 20px; border-radius: 50%;"></div>',
+                                    iconSize: [20, 20]
+                                })
+                            }
+                        ).addTo(map);
+                        marker.bindPopup(`
+                            <b>Proovitükk ${index + 1} (TÖÖS)</b><br>
+                            Langi ${currentLangNumber}<br>
+                            Raadius: ${proovitukk.raadius.toFixed(2)} m<br>
+                            Taimi: ${proovitukk.taimeArv}<br>
+                            Taimi/ha: ${proovitukk.taimedeArvHektaril.toFixed(2)}
+                        `);
+                        allMarkers.push(marker);
+                    }
+                });
+            }
+            
             // Keskendame kaardi kõikidele markeritele
             if (allMarkers.length > 0) {
                 const group = new L.featureGroup(allMarkers);
@@ -878,7 +1007,7 @@
                 sisu += `KOKKUVÕTE:\n`;
                 sisu += `Kokku langisid: ${langideArv.size}\n`;
                 sisu += `Kokku proovitükke: ${currentProovitukid.length + andmed.length}\n`;
-                sisu += `Kogu proovitükkide pindala: ${koguPindala.toFixed(2)} m²\n`;
+                sisu += `Kogu proovitükkide pindala: ${koguPindala.toFixed(2)} m² (${(koguPindala/10000).toFixed(4)} ha)\n`;
                 sisu += `Keskmine taimede arv hektaril: ${keskmineArvHektaril.toFixed(2)}\n`;
             }
             
@@ -895,6 +1024,7 @@
                 localStorage.removeItem("proovitukid");
                 currentProovitukid = [];
                 uuendaTabel();
+                uuendaKokkuvote();
             }
         }
         
@@ -927,6 +1057,7 @@
             }
             
             uuendaTabel();
+            uuendaKokkuvote();
             
             // Initsialiseerime kaardi
             initMap();
