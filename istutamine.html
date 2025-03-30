@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Istutamise Kalkulaator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .top-bar {
+            background-color: #4CAF50;
+            padding: 10px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .top-button {
+            padding: 10px 20px;
+            background-color: #45a049;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 10px;
+        }
+        .top-button:hover {
+            background-color: #3d8b40;
+        }
+        .container {
+            width: 80%;
+            margin: 0 auto;
+            max-width: 1000px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #333;
+            text-align: center;
+        }
+        label {
+            margin: 10px 0;
+            font-weight: bold;
+            display: block;
+        }
+        input[type="number"], input[type="text"] {
+            padding: 8px;
+            margin: 5px 0 15px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 100%;
+            max-width: 300px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 10px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <button class="top-button" onclick="location.href='index.html'">Proovitükkide arvutus</button>
+        <button class="top-button" onclick="location.href='istutamine.html'">Istutamise kalkulaator</button>
+    </div>
+
+    <div class="container">
+        <h2>Istutamise Kalkulaator</h2>
+        
+        <label for="taimedeArv">Mitu taime istutasid:</label>
+        <input type="number" id="taimedeArv" min="0" step="1">
+        
+        <label for="taimeHind">Ühe taime hind (€):</label>
+        <input type="number" id="taimeHind" min="0" step="0.01">
+        
+        <label for="langiNumber">Langi number:</label>
+        <input type="text" id="langiNumber">
+        
+        <label for="hektarid">Hektarid:</label>
+        <input type="number" id="hektarid" min="0" step="0.01">
+        
+        <button onclick="arvutaKokku()">Arvuta kokku</button>
+        
+        <h3>Istutamise andmed</h3>
+        <table id="istutamiseTabel">
+            <thead>
+                <tr>
+                    <th>Langi number</th>
+                    <th>Hektarid</th>
+                    <th>Istutatud taimede arv</th>
+                    <th>Ühe taime hind (€)</th>
+                    <th>Kokku teenitud (€)</th>
+                </tr>
+            </thead>
+            <tbody id="istutamiseSisu"></tbody>
+        </table>
+        
+        <button onclick="laadiIstutamiseAndmed()">Laadi andmed alla</button>
+        <button onclick="kustutaIstutamiseAndmed()">Kustuta andmed</button>
+    </div>
+
+    <script>
+        // Salvestame andmed localStorage'i
+        let istutamiseAndmed = JSON.parse(localStorage.getItem("istutamiseAndmed")) || [];
+        
+        // Arvutame kokku ja lisame tabelisse
+        function arvutaKokku() {
+            const taimedeArv = parseInt(document.getElementById("taimedeArv").value);
+            const taimeHind = parseFloat(document.getElementById("taimeHind").value);
+            const langiNumber = document.getElementById("langiNumber").value;
+            const hektarid = parseFloat(document.getElementById("hektarid").value);
+            
+            if (isNaN(taimedeArv) || isNaN(taimeHind) || !langiNumber || isNaN(hektarid)) {
+                alert("Palun täida kõik väljad korrektselt!");
+                return;
+            }
+            
+            const kokkuTeenitud = taimedeArv * taimeHind;
+            
+            // Lisame uue rea tabelisse
+            const tabel = document.getElementById("istutamiseSisu");
+            const uusRida = tabel.insertRow();
+            uusRida.innerHTML = `
+                <td>${langiNumber}</td>
+                <td>${hektarid.toFixed(2)}</td>
+                <td>${taimedeArv}</td>
+                <td>${taimeHind.toFixed(2)}</td>
+                <td>${kokkuTeenitud.toFixed(2)}</td>
+            `;
+            
+            // Salvestame andmed
+            istutamiseAndmed.push({
+                langiNumber,
+                hektarid,
+                taimedeArv,
+                taimeHind,
+                kokkuTeenitud
+            });
+            
+            localStorage.setItem("istutamiseAndmed", JSON.stringify(istutamiseAndmed));
+            
+            // Tühjendame väljad
+            document.getElementById("taimedeArv").value = "";
+            document.getElementById("taimeHind").value = "";
+            document.getElementById("hektarid").value = "";
+        }
+        
+        // Laadime andmed alla tekstifailina
+        function laadiIstutamiseAndmed() {
+            if (istutamiseAndmed.length === 0) {
+                alert("Pole andmeid allalaadimiseks!");
+                return;
+            }
+            
+            let sisu = "Istutamise andmed\n\n";
+            let koguTeenitud = 0;
+            let koguTaimed = 0;
+            
+            istutamiseAndmed.forEach(andmed => {
+                sisu += `Langi number: ${andmed.langiNumber}\n`;
+                sisu += `Hektarid: ${andmed.hektarid.toFixed(2)}\n`;
+                sisu += `Istutatud taimed: ${andmed.taimedeArv}\n`;
+                sisu += `Ühe taime hind: ${andmed.taimeHind.toFixed(2)} €\n`;
+                sisu += `Kokku teenitud: ${andmed.kokkuTeenitud.toFixed(2)} €\n\n`;
+                
+                koguTeenitud += andmed.kokkuTeenitud;
+                koguTaimed += andmed.taimedeArv;
+            });
+            
+            sisu += `KOKKUVÕTE:\n`;
+            sisu += `Kokku istutatud taimi: ${koguTaimed}\n`;
+            sisu += `Kokku teenitud: ${koguTeenitud.toFixed(2)} €\n`;
+            
+            const blob = new Blob([sisu], { type: "text/plain" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `istutamise_andmed_${new Date().toISOString().slice(0,10)}.txt`;
+            link.click();
+        }
+        
+        // Kustutame kõik andmed
+        function kustutaIstutamiseAndmed() {
+            if (confirm("Kas oled kindel, et soovid kõik istutamise andmed kustutada?")) {
+                localStorage.removeItem("istutamiseAndmed");
+                istutamiseAndmed = [];
+                document.getElementById("istutamiseSisu").innerHTML = "";
+            }
+        }
+        
+        // Laadime salvestatud andmed lehe avamisel
+        window.onload = function() {
+            istutamiseAndmed = JSON.parse(localStorage.getItem("istutamiseAndmed")) || [];
+            
+            const tabel = document.getElementById("istutamiseSisu");
+            tabel.innerHTML = "";
+            
+            istutamiseAndmed.forEach(andmed => {
+                const uusRida = tabel.insertRow();
+                uusRida.innerHTML = `
+                    <td>${andmed.langiNumber}</td>
+                    <td>${andmed.hektarid.toFixed(2)}</td>
+                    <td>${andmed.taimedeArv}</td>
+                    <td>${andmed.taimeHind.toFixed(2)}</td>
+                    <td>${andmed.kokkuTeenitud.toFixed(2)}</td>
+                `;
+            });
+        };
+    </script>
+</body>
+</html>
