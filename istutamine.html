@@ -82,6 +82,27 @@
         }
         th {
             background-color: #f2f2f2;
+            position: sticky;
+            top: 0;
+        }
+        .scrollable-table {
+            max-height: 500px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+        }
+        .input-group {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        .details-row {
+            background-color: #f9f9f9;
+        }
+        .details-cell {
+            padding-left: 30px !important;
+            text-align: left !important;
         }
     </style>
 </head>
@@ -94,33 +115,38 @@
     <div class="container">
         <h2>Istutamise Kalkulaator</h2>
         
-        <label for="taimedeArv">Mitu taime istutasid:</label>
-        <input type="number" id="taimedeArv" min="0" step="1">
-        
-        <label for="taimeHind">Ühe taime hind (€):</label>
-        <input type="number" id="taimeHind" min="0" step="0.01">
-        
-        <label for="langiNumber">Langi number:</label>
-        <input type="text" id="langiNumber">
-        
-        <label for="hektarid">Hektarid:</label>
-        <input type="number" id="hektarid" min="0" step="0.01">
-        
-        <button onclick="arvutaKokku()">Arvuta kokku</button>
+        <div class="input-group">
+            <label for="taimedeArv">Mitu taime istutasid:</label>
+            <input type="number" id="taimedeArv" min="0" step="1">
+            
+            <label for="taimeHind">Ühe taime hind (€):</label>
+            <input type="number" id="taimeHind" min="0" step="0.01">
+            
+            <label for="langiNumber">Langi number:</label>
+            <input type="text" id="langiNumber">
+            
+            <label for="hektarid">Hektarid:</label>
+            <input type="number" id="hektarid" min="0" step="0.01">
+            
+            <button onclick="arvutaKokku()">Arvuta kokku</button>
+        </div>
         
         <h3>Istutamise andmed</h3>
-        <table id="istutamiseTabel">
-            <thead>
-                <tr>
-                    <th>Langi number</th>
-                    <th>Hektarid</th>
-                    <th>Istutatud taimede arv</th>
-                    <th>Ühe taime hind (€)</th>
-                    <th>Kokku teenitud (€)</th>
-                </tr>
-            </thead>
-            <tbody id="istutamiseSisu"></tbody>
-        </table>
+        <div class="scrollable-table">
+            <table id="istutamiseTabel">
+                <thead>
+                    <tr>
+                        <th>Langi number</th>
+                        <th>Hektarid</th>
+                        <th>Istutuste arv</th>
+                        <th>Kokku taimi</th>
+                        <th>Kokku teenitud (€)</th>
+                        <th>Tegevused</th>
+                    </tr>
+                </thead>
+                <tbody id="istutamiseSisu"></tbody>
+            </table>
+        </div>
         
         <button onclick="laadiIstutamiseAndmed()">Laadi andmed alla</button>
         <button onclick="kustutaIstutamiseAndmed()">Kustuta andmed</button>
@@ -144,32 +170,131 @@
             
             const kokkuTeenitud = taimedeArv * taimeHind;
             
-            // Lisame uue rea tabelisse
-            const tabel = document.getElementById("istutamiseSisu");
-            const uusRida = tabel.insertRow();
-            uusRida.innerHTML = `
-                <td>${langiNumber}</td>
-                <td>${hektarid.toFixed(2)}</td>
-                <td>${taimedeArv}</td>
-                <td>${taimeHind.toFixed(2)}</td>
-                <td>${kokkuTeenitud.toFixed(2)}</td>
-            `;
+            // Kontrollime, kas lang juba eksisteerib
+            const langIndex = istutamiseAndmed.findIndex(item => item.langiNumber === langiNumber);
+            
+            if (langIndex === -1) {
+                // Uus lang
+                const uusLang = {
+                    langiNumber,
+                    hektarid,
+                    istutused: [{
+                        taimedeArv,
+                        taimeHind,
+                        kokkuTeenitud,
+                        kuupaev: new Date().toISOString().slice(0, 10)
+                    }],
+                    kokkuTaimed: taimedeArv,
+                    kokkuTeenitud: kokkuTeenitud
+                };
+                
+                istutamiseAndmed.push(uusLang);
+            } else {
+                // Olemasolevale langile lisame uue istutuse
+                const olemasolevLang = istutamiseAndmed[langIndex];
+                olemasolevLang.istutused.push({
+                    taimedeArv,
+                    taimeHind,
+                    kokkuTeenitud,
+                    kuupaev: new Date().toISOString().slice(0, 10)
+                });
+                
+                // Uuendame kogusummasid
+                olemasolevLang.kokkuTaimed += taimedeArv;
+                olemasolevLang.kokkuTeenitud += kokkuTeenitud;
+                
+                // Kui hektarid on erinevad, võtame uue väärtuse
+                if (olemasolevLang.hektarid !== hektarid) {
+                    olemasolevLang.hektarid = hektarid;
+                }
+            }
             
             // Salvestame andmed
-            istutamiseAndmed.push({
-                langiNumber,
-                hektarid,
-                taimedeArv,
-                taimeHind,
-                kokkuTeenitud
-            });
-            
             localStorage.setItem("istutamiseAndmed", JSON.stringify(istutamiseAndmed));
+            
+            // Uuendame tabelit
+            uuendaTabel();
             
             // Tühjendame väljad
             document.getElementById("taimedeArv").value = "";
             document.getElementById("taimeHind").value = "";
-            document.getElementById("hektarid").value = "";
+        }
+        
+        // Uuendame tabeli andmetega
+        function uuendaTabel() {
+            const tabel = document.getElementById("istutamiseSisu");
+            tabel.innerHTML = "";
+            
+            istutamiseAndmed.forEach((lang, langIndex) => {
+                // Peamine rida (langi üldandmed)
+                const peamineRida = tabel.insertRow();
+                peamineRida.innerHTML = `
+                    <td>${lang.langiNumber}</td>
+                    <td>${lang.hektarid.toFixed(2)}</td>
+                    <td>${lang.istutused.length}</td>
+                    <td>${lang.kokkuTaimed}</td>
+                    <td>${lang.kokkuTeenitud.toFixed(2)}</td>
+                    <td>
+                        <button onclick="näitaDetailseid(${langIndex})">Detailid</button>
+                        <button onclick="kustutaLang(${langIndex})">Kustuta</button>
+                    </td>
+                `;
+                
+                // Detailrida (kui detailid on nähtavad)
+                if (lang.näitaDetailseid) {
+                    lang.istutused.forEach((istutus, istutusIndex) => {
+                        const detailRida = tabel.insertRow();
+                        detailRida.className = "details-row";
+                        detailRida.innerHTML = `
+                            <td class="details-cell" colspan="6">
+                                Kuupäev: ${istutus.kuupaev} | 
+                                Taimede arv: ${istutus.taimedeArv} | 
+                                Ühe taime hind: ${istutus.taimeHind.toFixed(2)} € | 
+                                Kokku: ${istutus.kokkuTeenitud.toFixed(2)} €
+                                <button onclick="kustutaIstutus(${langIndex}, ${istutusIndex})" style="float: right; margin-left: 10px;">Kustuta see istutus</button>
+                            </td>
+                        `;
+                    });
+                }
+            });
+        }
+        
+        // Näitab või peidab langi detailid
+        function näitaDetailseid(langIndex) {
+            istutamiseAndmed[langIndex].näitaDetailseid = !istutamiseAndmed[langIndex].näitaDetailseid;
+            localStorage.setItem("istutamiseAndmed", JSON.stringify(istutamiseAndmed));
+            uuendaTabel();
+        }
+        
+        // Kustutab kogu langi koos kõigi istutustega
+        function kustutaLang(langIndex) {
+            if (confirm("Kas oled kindel, et soovid kogu selle langi andmed kustutada?")) {
+                istutamiseAndmed.splice(langIndex, 1);
+                localStorage.setItem("istutamiseAndmed", JSON.stringify(istutamiseAndmed));
+                uuendaTabel();
+            }
+        }
+        
+        // Kustutab üksiku istutuse
+        function kustutaIstutus(langIndex, istutusIndex) {
+            if (confirm("Kas oled kindel, et soovid selle istutuse andmed kustutada?")) {
+                const lang = istutamiseAndmed[langIndex];
+                
+                // Eemaldame istutuse
+                const eemaldatudIstutus = lang.istutuses.splice(istutusIndex, 1)[0];
+                
+                // Uuendame kogusummasid
+                lang.kokkuTaimed -= eemaldatudIstutus.taimedeArv;
+                lang.kokkuTeenitud -= eemaldatudIstutus.kokkuTeenitud;
+                
+                // Kui istutusi pole enam järel, eemaldame langi täielikult
+                if (lang.istutused.length === 0) {
+                    istutamiseAndmed.splice(langIndex, 1);
+                }
+                
+                localStorage.setItem("istutamiseAndmed", JSON.stringify(istutamiseAndmed));
+                uuendaTabel();
+            }
         }
         
         // Laadime andmed alla tekstifailina
@@ -182,21 +307,35 @@
             let sisu = "Istutamise andmed\n\n";
             let koguTeenitud = 0;
             let koguTaimed = 0;
+            let koguHektarid = 0;
             
-            istutamiseAndmed.forEach(andmed => {
-                sisu += `Langi number: ${andmed.langiNumber}\n`;
-                sisu += `Hektarid: ${andmed.hektarid.toFixed(2)}\n`;
-                sisu += `Istutatud taimed: ${andmed.taimedeArv}\n`;
-                sisu += `Ühe taime hind: ${andmed.taimeHind.toFixed(2)} €\n`;
-                sisu += `Kokku teenitud: ${andmed.kokkuTeenitud.toFixed(2)} €\n\n`;
+            istutamiseAndmed.forEach(lang => {
+                sisu += `Langi number: ${lang.langiNumber}\n`;
+                sisu += `Hektarid: ${lang.hektarid.toFixed(2)}\n`;
+                sisu += `Istutuste arv: ${lang.istutused.length}\n`;
+                sisu += `Kokku istutatud taimi: ${lang.kokkuTaimed}\n`;
+                sisu += `Kokku teenitud: ${lang.kokkuTeenitud.toFixed(2)} €\n\n`;
                 
-                koguTeenitud += andmed.kokkuTeenitud;
-                koguTaimed += andmed.taimedeArv;
+                // Detailid iga istutuse kohta
+                sisu += `Istutuste detailid:\n`;
+                lang.istutused.forEach(istutus => {
+                    sisu += `- ${istutus.kuupaev}: ${istutus.taimedeArv} taimed (${istutus.taimeHind.toFixed(2)} €/tk), kokku ${istutus.kokkuTeenitud.toFixed(2)} €\n`;
+                });
+                
+                sisu += `\n`;
+                
+                koguTeenitud += lang.kokkuTeenitud;
+                koguTaimed += lang.kokkuTaimed;
+                koguHektarid += lang.hektarid;
             });
             
             sisu += `KOKKUVÕTE:\n`;
+            sisu += `Kokku langisid: ${istutamiseAndmed.length}\n`;
+            sisu += `Kokku hektareid: ${koguHektarid.toFixed(2)}\n`;
             sisu += `Kokku istutatud taimi: ${koguTaimed}\n`;
             sisu += `Kokku teenitud: ${koguTeenitud.toFixed(2)} €\n`;
+            sisu += `Keskmine taimede arv hektari kohta: ${(koguTaimed / koguHektarid).toFixed(2)}\n`;
+            sisu += `Keskmine tulu hektari kohta: ${(koguTeenitud / koguHektarid).toFixed(2)} €\n`;
             
             const blob = new Blob([sisu], { type: "text/plain" });
             const link = document.createElement("a");
@@ -217,20 +356,10 @@
         // Laadime salvestatud andmed lehe avamisel
         window.onload = function() {
             istutamiseAndmed = JSON.parse(localStorage.getItem("istutamiseAndmed")) || [];
+            uuendaTabel();
             
-            const tabel = document.getElementById("istutamiseSisu");
-            tabel.innerHTML = "";
-            
-            istutamiseAndmed.forEach(andmed => {
-                const uusRida = tabel.insertRow();
-                uusRida.innerHTML = `
-                    <td>${andmed.langiNumber}</td>
-                    <td>${andmed.hektarid.toFixed(2)}</td>
-                    <td>${andmed.taimedeArv}</td>
-                    <td>${andmed.taimeHind.toFixed(2)}</td>
-                    <td>${andmed.kokkuTeenitud.toFixed(2)}</td>
-                `;
-            });
+            // Määra tänane kuupäev vaikeväärtuseks
+            document.getElementById("kuupaev").value = new Date().toISOString().slice(0, 10);
         };
     </script>
 </body>
