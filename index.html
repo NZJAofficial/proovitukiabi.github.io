@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Proovitükkide Arvutus</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -40,7 +41,7 @@
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
             position: relative;
         }
-        h2, h3 {
+        h2, h3, h4 {
             color: #333;
             margin-left: 20px;
         }
@@ -118,11 +119,6 @@
         .active-work {
             background-color: #fffde7;
         }
-        .work-session-info {
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
-        }
         .gps-container {
             margin-top: 15px;
             padding: 10px;
@@ -134,22 +130,10 @@
             margin-top: 15px;
             border: 1px solid #ddd;
             position: relative;
-            display: none;
         }
         #map {
             height: 100%;
             width: 100%;
-        }
-        .map-marker {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 20px;
-            height: 20px;
-            background-color: red;
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
         }
         .coordinates-display {
             margin-top: 10px;
@@ -159,11 +143,33 @@
             font-weight: bold;
             background-color: #e6f7ff;
         }
+        .gps-status {
+            margin-top: 10px;
+            padding: 5px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+        .gps-active {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .gps-inactive {
+            background-color: #f44336;
+            color: white;
+        }
+        .metsaportaal-frame {
+            width: 100%;
+            height: 500px;
+            border: 1px solid #ddd;
+            margin-top: 20px;
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="timer-container" id="timerContainer">
         <div>Tööaeg: <span id="timerDisplay">00:00:00</span></div>
+        <div>GPS: <span id="gpsStatusText" class="gps-status gps-inactive">MITTEAKTIIVNE</span></div>
         <button id="stopWorkButton" style="margin-top: 10px; width: 100%;">Lõpeta töö</button>
     </div>
 
@@ -182,27 +188,28 @@
             <button id="startWorkButton" onclick="alustaTood()">Alusta töötegemist</button>
             <div id="workInfo" style="display: none; margin-top: 10px;">
                 <p>Töö käib: <span id="currentLangNumber"></span></p>
-                <div class="gps-container">
-                    <h4>Asukoha märkimine</h4>
-                    <button onclick="näitaKaarti()">Ava kaart</button>
-                    <button onclick="kasutaGPS()">Kasuta GPS-i</button>
-                    <button onclick="kustutaAsukoht()">Eemalda asukoht</button>
-                    
-                    <div class="map-container" id="mapContainer">
-                        <div id="map"></div>
-                        <div class="map-marker"></div>
-                    </div>
-                    
-                    <div class="coordinates-display">
-                        <p>Valitud koordinaadid: <span id="selectedCoordinates">Määramata</span></p>
-                        <p>Täpsus: <span id="accuracyInfo">-</span></p>
-                    </div>
-                </div>
+                <button onclick="avaMetsaportaal()">Ava Metsaportaal</button>
+                <div class="metsaportaal-frame" id="metsaportaalFrame"></div>
             </div>
         </div>
         
         <div class="input-group" id="workInputGroup" style="display: none;">
             <h3>Proovitükkide andmed</h3>
+            
+            <div class="gps-container">
+                <h4>Asukoha jälgimine</h4>
+                <div class="map-container">
+                    <div id="map"></div>
+                </div>
+                <div class="coordinates-display">
+                    <p>Praegune asukoht: <span id="currentCoordinates">Määramata</span></p>
+                    <p>Täpsus: <span id="accuracyInfo">-</span></p>
+                    <p>Viimati uuendatud: <span id="lastUpdateTime">-</span></p>
+                </div>
+                <button id="toggleGpsButton" onclick="toggleGPS()">Käivita GPS jälgimine</button>
+                <button onclick="lisaPraeguneAsukoht()">Lisa praegune asukoht</button>
+            </div>
+            
             <label for="kuupaev">Kuupäev:</label>
             <input type="date" id="kuupaev">
             
@@ -249,17 +256,143 @@
         <button onclick="kustutaAndmed()">Kustuta andmed</button>
     </div>
 
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script>
         // Muutujad tööaja jälgimiseks
         let startTime;
         let timerInterval;
         let currentLangNumber = "";
         let currentWorkSessionId = "";
-        let currentGPS = null;
         let currentProovitukid = [];
+        
+        // Kaardi ja GPS-i muutujad
         let map;
-        let marker;
-        let clickListener;
+        let userMarker;
+        let proovitukkMarker;
+        let watchId = null;
+        let currentPosition = null;
+        let lastProovitukkPosition = null;
+        
+        // Kaardi lähtestamine
+        function initMap() {
+            map = L.map('map').setView([58.5953, 25.0136], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+            
+            // Kasutaja marker
+            userMarker = L.marker([58.5953, 25.0136], {
+                icon: L.divIcon({
+                    className: 'user-marker',
+                    html: '<div style="background-color: blue; width: 20px; height: 20px; border-radius: 50%;"></div>',
+                    iconSize: [20, 20]
+                }),
+                zIndexOffset: 1000
+            }).addTo(map);
+            
+            // Proovitüki marker
+            proovitukkMarker = L.marker([58.5953, 25.0136], {
+                icon: L.divIcon({
+                    className: 'proovitukk-marker',
+                    html: '<div style="background-color: red; width: 20px; height: 20px; border-radius: 50%;"></div>',
+                    iconSize: [20, 20]
+                }),
+                zIndexOffset: 900
+            }).addTo(map);
+            proovitukkMarker.setOpacity(0);
+        }
+        
+        // GPS-i jälgimise käivitamine/lõpetamine
+        function toggleGPS() {
+            const button = document.getElementById("toggleGpsButton");
+            
+            if (watchId) {
+                // Lõpeta jälgimine
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+                button.textContent = "Käivita GPS jälgimine";
+                document.getElementById("gpsStatusText").textContent = "MITTEAKTIIVNE";
+                document.getElementById("gpsStatusText").className = "gps-status gps-inactive";
+            } else {
+                // Alusta jälgimist
+                if (navigator.geolocation) {
+                    watchId = navigator.geolocation.watchPosition(
+                        position => {
+                            currentPosition = {
+                                latitude: position.coords.latitude,
+                                longitude: position.coords.longitude,
+                                accuracy: position.coords.accuracy,
+                                timestamp: new Date(position.timestamp)
+                            };
+                            
+                            // Uuenda kaarti
+                            userMarker.setLatLng([currentPosition.latitude, currentPosition.longitude]);
+                            map.setView([currentPosition.latitude, currentPosition.longitude], 16);
+                            
+                            // Uuenda kuvatavaid andmeid
+                            document.getElementById("currentCoordinates").textContent = 
+                                `${currentPosition.latitude.toFixed(6)}, ${currentPosition.longitude.toFixed(6)}`;
+                            document.getElementById("accuracyInfo").textContent = 
+                                `±${Math.round(currentPosition.accuracy)} meetrit`;
+                            document.getElementById("lastUpdateTime").textContent = 
+                                new Date(currentPosition.timestamp).toLocaleTimeString();
+                            
+                            document.getElementById("gpsStatusText").textContent = "AKTIIVNE";
+                            document.getElementById("gpsStatusText").className = "gps-status gps-active";
+                        },
+                        error => {
+                            alert("GPS-i jälgimine ebaõnnestus: " + error.message);
+                            document.getElementById("gpsStatusText").textContent = "VIGA";
+                            document.getElementById("gpsStatusText").className = "gps-status gps-inactive";
+                        },
+                        { 
+                            enableHighAccuracy: true,
+                            maximumAge: 10000,
+                            timeout: 5000
+                        }
+                    );
+                    button.textContent = "Peata GPS jälgimine";
+                } else {
+                    alert("Teie brauser ei toeta geolokatsiooni!");
+                }
+            }
+        }
+        
+        // Lisa praegune asukoht proovitükile
+        function lisaPraeguneAsukoht() {
+            if (currentPosition) {
+                lastProovitukkPosition = {...currentPosition};
+                proovitukkMarker.setLatLng([lastProovitukkPosition.latitude, lastProovitukkPosition.longitude]);
+                proovitukkMarker.setOpacity(1);
+                
+                // Näita teadet
+                alert("Asukoht määratud: " + 
+                    `${lastProovitukkPosition.latitude.toFixed(6)}, ${lastProovitukkPosition.longitude.toFixed(6)}`);
+            } else {
+                alert("GPS asukoht pole saadaval! Käivita GPS jälgimine.");
+            }
+        }
+        
+        // Ava Metsaportaal
+        function avaMetsaportaal() {
+            const frame = document.getElementById("metsaportaalFrame");
+            if (frame.style.display === "none") {
+                frame.style.display = "block";
+                frame.innerHTML = `
+                    <iframe src="https://metsaportaal.ee" style="width:100%;height:100%;border:none;"></iframe>
+                    <p style="text-align:center;margin-top:5px;">
+                        <button onclick="sulgeMetsaportaal()">Sulge Metsaportaal</button>
+                    </p>
+                `;
+            } else {
+                sulgeMetsaportaal();
+            }
+        }
+        
+        function sulgeMetsaportaal() {
+            document.getElementById("metsaportaalFrame").style.display = "none";
+            document.getElementById("metsaportaalFrame").innerHTML = "";
+        }
         
         // Funktsioon, mis muudab proovitükkide sisestusväljad
         function muudaProovitukkideVäljad() {
@@ -289,7 +422,8 @@
             currentLangNumber = langiNumber;
             currentWorkSessionId = Date.now().toString();
             currentProovitukid = [];
-            currentGPS = null;
+            lastProovitukkPosition = null;
+            proovitukkMarker.setOpacity(0);
             
             // Aktiveerime töörežiimi
             document.getElementById("startWorkButton").disabled = true;
@@ -298,8 +432,6 @@
             document.getElementById("workInfo").style.display = "block";
             document.getElementById("currentLangNumber").textContent = langiNumber;
             document.getElementById("mainContainer").classList.add("active-work");
-            document.getElementById("selectedCoordinates").textContent = "Määramata";
-            document.getElementById("accuracyInfo").textContent = "-";
             
             // Määrame tänase kuupäeva
             document.getElementById("kuupaev").value = new Date().toISOString().slice(0, 10);
@@ -308,6 +440,11 @@
             startTime = new Date();
             document.getElementById("timerContainer").style.display = "block";
             käivitaAjastaja();
+            
+            // Kui kaart pole veel lähtestatud, lähtestame
+            if (!map) {
+                initMap();
+            }
         }
         
         // Käivitame ajastaja
@@ -326,97 +463,6 @@
             
             // Seadistame töö lõpetamise nupu
             document.getElementById("stopWorkButton").onclick = lõpetaTöö;
-        }
-        
-        // Näita kaarti asukoha valimiseks
-        function näitaKaarti() {
-            const mapContainer = document.getElementById("mapContainer");
-            mapContainer.style.display = "block";
-            
-            if (!map) {
-                // Loome uue kaardi keskpunktiga Eesti
-                map = L.map('map').setView([58.5953, 25.0136], 7);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                }).addTo(map);
-                
-                // Lisame markeri
-                marker = L.marker([58.5953, 25.0136], {
-                    draggable: true,
-                    autoPan: true
-                }).addTo(map);
-                
-                // Kuulame markeri liigutamist
-                marker.on('move', function(e) {
-                    const latlng = marker.getLatLng();
-                    currentGPS = {
-                        latitude: latlng.lat,
-                        longitude: latlng.lng,
-                        accuracy: 10 // Eeldame 10m täpsust käsitsi märkimisel
-                    };
-                    uuendaKoordinaatideKuvamine();
-                });
-                
-                // Kuulame kaardil klikkimist
-                clickListener = map.on('click', function(e) {
-                    marker.setLatLng(e.latlng);
-                    currentGPS = {
-                        latitude: e.latlng.lat,
-                        longitude: e.latlng.lng,
-                        accuracy: 10 // Eeldame 10m täpsust käsitsi märkimisel
-                    };
-                    uuendaKoordinaatideKuvamine();
-                });
-            }
-        }
-        
-        // Kasuta GPS-i asukoha määramiseks
-        function kasutaGPS() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    function(position) {
-                        currentGPS = {
-                            latitude: position.coords.latitude,
-                            longitude: position.coords.longitude,
-                            accuracy: position.coords.accuracy
-                        };
-                        
-                        // Näita kaarti ja keskenda valitud asukohale
-                        näitaKaarti();
-                        map.setView([currentGPS.latitude, currentGPS.longitude], 16);
-                        marker.setLatLng([currentGPS.latitude, currentGPS.longitude]);
-                        
-                        uuendaKoordinaatideKuvamine();
-                    },
-                    function(error) {
-                        alert("GPS asukoha määramine ebaõnnestus: " + error.message);
-                    },
-                    { enableHighAccuracy: true }
-                );
-            } else {
-                alert("Teie brauser ei toeta geolokatsiooni!");
-            }
-        }
-        
-        // Kustuta asukoht
-        function kustutaAsukoht() {
-            currentGPS = null;
-            document.getElementById("selectedCoordinates").textContent = "Määramata";
-            document.getElementById("accuracyInfo").textContent = "-";
-            document.getElementById("mapContainer").style.display = "none";
-        }
-        
-        // Uuenda koordinaatide kuvamist
-        function uuendaKoordinaatideKuvamine() {
-            if (currentGPS) {
-                document.getElementById("selectedCoordinates").textContent = 
-                    `${currentGPS.latitude.toFixed(6)}, ${currentGPS.longitude.toFixed(6)}`;
-                document.getElementById("accuracyInfo").textContent = 
-                    `±${Math.round(currentGPS.accuracy)} meetrit`;
-            } else {
-                document.getElementById("selectedCoordinates").textContent = "Määramata";
-                document.getElementById("accuracyInfo").textContent = "-";
-            }
         }
         
         // Lisame proovitüki andmed
@@ -450,7 +496,7 @@
                 pindala,
                 proovitukkideArvudeSeeria,
                 proovitukkideArvHektaril,
-                gps: currentGPS ? {...currentGPS} : null
+                gps: lastProovitukkPosition ? {...lastProovitukkPosition} : null
             });
             
             // Uuendame tabelit
@@ -461,6 +507,10 @@
             for (let i = 1; i <= proovitukkideArv; i++) {
                 document.getElementById(`proovitukk${i}`).value = "";
             }
+            
+            // Peida proovitüki marker
+            proovitukkMarker.setOpacity(0);
+            lastProovitukkPosition = null;
         }
         
         // Lõpetame töö ja salvestame andmed
@@ -525,17 +575,27 @@
                 localStorage.setItem("proovitukid", JSON.stringify(andmed));
             }
             
+            // Lõpetame GPS-i jälgimise
+            if (watchId) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+                document.getElementById("toggleGpsButton").textContent = "Käivita GPS jälgimine";
+                document.getElementById("gpsStatusText").textContent = "MITTEAKTIIVNE";
+                document.getElementById("gpsStatusText").className = "gps-status gps-inactive";
+            }
+            
+            // Sulge Metsaportaal
+            sulgeMetsaportaal();
+            
             // Lähtestame töörežiimi
             document.getElementById("startWorkButton").disabled = false;
             document.getElementById("langiNumber").disabled = false;
             document.getElementById("workInputGroup").style.display = "none";
             document.getElementById("workInfo").style.display = "none";
             document.getElementById("mainContainer").classList.remove("active-work");
-            document.getElementById("mapContainer").style.display = "none";
             
             // Tühjendame väljad
             document.getElementById("langiNumber").value = "";
-            currentGPS = null;
             currentProovitukid = [];
             
             // Uuendame tabelit
@@ -571,16 +631,23 @@
             
             // Lisame töös olevad proovitükid (kui neid on)
             if (currentProovitukid.length > 0) {
+                const kokkuTaimed = currentProovitukid.reduce((sum, pt) => sum + pt.proovitukkideArvudeSeeria.reduce((s, v) => s + v, 0), 0);
+                const keskmine = (currentProovitukid.reduce((sum, pt) => sum + pt.proovitukkideArvHektaril, 0) / currentProovitukid.length);
+                const kokkuPindala = currentProovitukid.reduce((sum, pt) => sum + pt.pindala, 0);
+                const gpsText = currentProovitukid[0]?.gps ? 
+                    `${currentProovitukid[0].gps.latitude.toFixed(6)}, ${currentProovitukid[0].gps.longitude.toFixed(6)}` : 
+                    'Määramata';
+                
                 const rida = tabel.insertRow();
                 rida.className = "summary-row";
                 rida.innerHTML = `
                     <td>${currentLangNumber} (TÖÖS)</td>
                     <td>-</td>
-                    <td>-</td>
-                    <td>${currentProovitukid.reduce((sum, pt) => sum + pt.proovitukkideArvudeSeeria.reduce((s, v) => s + v, 0), 0)}</td>
-                    <td>${(currentProovitukid.reduce((sum, pt) => sum + pt.proovitukkideArvHektaril, 0) / currentProovitukid.length).toFixed(2)}</td>
+                    <td>${kokkuPindala.toFixed(2)}</td>
+                    <td>${kokkuTaimed}</td>
+                    <td>${keskmine.toFixed(2)}</td>
                     <td>${currentProovitukid[0]?.kuupaev || '-'}</td>
-                    <td>${currentProovitukid[0]?.gps ? `${currentProovitukid[0].gps.latitude.toFixed(6)}, ${currentProovitukid[0].gps.longitude.toFixed(6)}` : 'Määramata'}</td>
+                    <td>${gpsText}</td>
                     <td>Töös</td>
                     <td></td>
                 `;
@@ -881,19 +948,8 @@
             
             uuendaTabel();
             
-            // Laadime OpenStreetMap'i raamistiku
-            const script = document.createElement('script');
-            script.src = 'https://unpkg.com/leaflet@1.7.1/dist/leaflet.js';
-            script.onload = function() {
-                // CSS on juba lisatud
-                console.log('Leaflet loaded');
-            };
-            document.head.appendChild(script);
-            
-            const link = document.createElement('link');
-            link.rel = 'stylesheet';
-            link.href = 'https://unpkg.com/leaflet@1.7.1/dist/leaflet.css';
-            document.head.appendChild(link);
+            // Initsialiseerime kaardi
+            initMap();
         };
     </script>
 </body>
