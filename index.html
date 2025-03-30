@@ -476,6 +476,11 @@
                 return;
             }
 
+            if (!lastProovitukkPosition) {
+                alert("Palun märgi proovitüki asukoht enne lisamist!");
+                return;
+            }
+
             let proovitukkideArvudeSeeria = [];
             for (let i = 1; i <= proovitukkideArv; i++) {
                 let proovitukk = parseInt(document.getElementById(`proovitukk${i}`).value);
