@@ -189,6 +189,11 @@
             background-color: #f0f8ff;
             border-radius: 5px;
         }
+        .circle-marker {
+            background-color: rgba(255, 0, 0, 0.5);
+            border-radius: 50%;
+            border: 2px solid red;
+        }
     </style>
 </head>
 <body>
@@ -226,6 +231,7 @@
                     <div class="map-legend">
                         <div><span class="langi-marker"></span> Langi asukoht</div>
                         <div><span class="proovitukk-marker"></span> Proovitüki asukoht</div>
+                        <div><span style="display: inline-block; width: 15px; height: 15px; border-radius: 50%; border: 2px solid red; background-color: rgba(255,0,0,0.3);"></span> Proovitüki raadius</div>
                     </div>
                 </div>
                 <div class="coordinates-display">
@@ -293,10 +299,12 @@
         let userMarker;
         let langiMarker;
         let proovitukkMarker;
+        let proovitukkCircle;
         let watchId = null;
         let currentPosition = null;
         let lastProovitukkPosition = null;
         let allMarkers = [];
+        let allCircles = [];
         
         // Kaardi lähtestamine
         function initMap() {
@@ -309,7 +317,7 @@
             userMarker = L.marker([58.5953, 25.0136], {
                 icon: L.divIcon({
                     className: 'user-marker',
-                    html: '<div style="background-color: blue; width: 20px; height: 20px; border-radius: 50%;"></div>',
+                    html: '<div style="background-color: green; width: 20px; height: 20px; border-radius: 50%;"></div>',
                     iconSize: [20, 20]
                 }),
                 zIndexOffset: 1000
@@ -336,6 +344,16 @@
                 zIndexOffset: 800
             }).addTo(map);
             proovitukkMarker.setOpacity(0);
+            
+            // Proovitüki ring (raadiuse jaoks)
+            proovitukkCircle = L.circle([58.5953, 25.0136], {
+                radius: 0,
+                color: 'red',
+                fillColor: '#f03',
+                fillOpacity: 0.3,
+                className: 'circle-marker'
+            }).addTo(map);
+            proovitukkCircle.setStyle({opacity: 0});
         }
         
         // GPS-i jälgimise käivitamine/lõpetamine
@@ -407,6 +425,14 @@
                 proovitukkMarker.setLatLng([lastProovitukkPosition.latitude, lastProovitukkPosition.longitude]);
                 proovitukkMarker.setOpacity(1);
                 
+                // Uuenda ka proovitüki ringi (kui raadius on määratud)
+                const raadius = parseFloat(document.getElementById("raadius").value);
+                if (!isNaN(raadius) {
+                    proovitukkCircle.setLatLng([lastProovitukkPosition.latitude, lastProovitukkPosition.longitude]);
+                    proovitukkCircle.setRadius(raadius);
+                    proovitukkCircle.setStyle({opacity: 1});
+                }
+                
                 // Näita teadet
                 alert("Proovitüki asukoht määratud: " + 
                     `${lastProovitukkPosition.latitude.toFixed(6)}, ${lastProovitukkPosition.longitude.toFixed(6)}`);
@@ -429,6 +455,7 @@
             currentProovitukid = [];
             lastProovitukkPosition = null;
             proovitukkMarker.setOpacity(0);
+            proovitukkCircle.setStyle({opacity: 0});
             
             // Aktiveerime töörežiimi
             document.getElementById("startWorkButton").disabled = true;
@@ -466,7 +493,7 @@
                 
                 const hours = Math.floor(timeDiff / (1000 * 60 * 60));
                 const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
+                const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000;
                 
                 document.getElementById("timerDisplay").textContent = 
                     `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
@@ -515,8 +542,9 @@
             document.getElementById("raadius").value = "";
             document.getElementById("taimeArv").value = "";
             
-            // Peida proovitüki marker
+            // Peida proovitüki marker ja ring
             proovitukkMarker.setOpacity(0);
+            proovitukkCircle.setStyle({opacity: 0});
             lastProovitukkPosition = null;
         }
         
@@ -767,9 +795,11 @@
             let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
             let langiProovitukid = andmed.filter(item => item.langiNumber === langiNumber);
             
-            // Kustuta eelmised markerid
+            // Kustuta eelmised markerid ja ringid
             allMarkers.forEach(marker => map.removeLayer(marker));
             allMarkers = [];
+            allCircles.forEach(circle => map.removeLayer(circle));
+            allCircles = [];
             
             if (langiProovitukid.length > 0) {
                 // Kuvame langi asukoha
@@ -788,9 +818,10 @@
                     allMarkers.push(marker);
                 }
                 
-                // Kuvame proovitükkide asukohad
+                // Kuvame proovitükkide asukohad ja ringid
                 langiProovitukid.forEach((proovitukk, index) => {
                     if (proovitukk.gps) {
+                        // Marker
                         const marker = L.marker(
                             [proovitukk.gps.latitude, proovitukk.gps.longitude],
                             {
@@ -809,6 +840,16 @@
                             Taimi/ha: ${proovitukk.taimedeArvHektaril.toFixed(2)}
                         `);
                         allMarkers.push(marker);
+                        
+                        // Ring (raadiuse jaoks)
+                        const circle = L.circle([proovitukk.gps.latitude, proovitukk.gps.longitude], {
+                            radius: proovitukk.raadius,
+                            color: 'red',
+                            fillColor: '#f03',
+                            fillOpacity: 0.3,
+                            className: 'circle-marker'
+                        }).addTo(map);
+                        allCircles.push(circle);
                     }
                 });
                 
@@ -824,9 +865,11 @@
         function naitaKaardil() {
             let andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
             
-            // Kustuta eelmised markerid
+            // Kustuta eelmised markerid ja ringid
             allMarkers.forEach(marker => map.removeLayer(marker));
             allMarkers = [];
+            allCircles.forEach(circle => map.removeLayer(circle));
+            allCircles = [];
             
             // Grupeerime andmed langi numbri järgi
             let groupedData = {};
@@ -855,9 +898,10 @@
                     allMarkers.push(marker);
                 }
                 
-                // Proovitükkide markerid
+                // Proovitükkide markerid ja ringid
                 proovitukid.forEach((proovitukk, index) => {
                     if (proovitukk.gps) {
+                        // Marker
                         const marker = L.marker(
                             [proovitukk.gps.latitude, proovitukk.gps.longitude],
                             {
@@ -876,6 +920,16 @@
                             Taimi/ha: ${proovitukk.taimedeArvHektaril.toFixed(2)}
                         `);
                         allMarkers.push(marker);
+                        
+                        // Ring (raadiuse jaoks)
+                        const circle = L.circle([proovitukk.gps.latitude, proovitukk.gps.longitude], {
+                            radius: proovitukk.raadius,
+                            color: 'red',
+                            fillColor: '#f03',
+                            fillOpacity: 0.3,
+                            className: 'circle-marker'
+                        }).addTo(map);
+                        allCircles.push(circle);
                     }
                 });
             });
@@ -898,9 +952,10 @@
                     allMarkers.push(marker);
                 }
                 
-                // Proovitükkide markerid
+                // Proovitükkide markerid ja ringid
                 currentProovitukid.forEach((proovitukk, index) => {
                     if (proovitukk.gps) {
+                        // Marker
                         const marker = L.marker(
                             [proovitukk.gps.latitude, proovitukk.gps.longitude],
                             {
@@ -919,6 +974,16 @@
                             Taimi/ha: ${proovitukk.taimedeArvHektaril.toFixed(2)}
                         `);
                         allMarkers.push(marker);
+                        
+                        // Ring (raadiuse jaoks)
+                        const circle = L.circle([proovitukk.gps.latitude, proovitukk.gps.longitude], {
+                            radius: proovitukk.raadius,
+                            color: 'red',
+                            fillColor: '#f03',
+                            fillOpacity: 0.3,
+                            className: 'circle-marker'
+                        }).addTo(map);
+                        allCircles.push(circle);
                     }
                 });
             }
