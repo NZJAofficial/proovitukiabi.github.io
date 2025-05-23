@@ -204,8 +204,8 @@
     </div>
 
     <div class="top-bar">
-        <button class="top-button" onclick="location.href='index.html'">Proovitükkide arvutus</button>
-        <button class="top-button" onclick="location.href='istutamine.html'">Istutamise kalkulaator</button>
+        <button class="top-button" id="proovitukkideNupp">Proovitükkide arvutus</button>
+        <button class="top-button" id="istutamiseNupp">Istutamise kalkulaator</button>
     </div>
 
     <div class="container" id="mainContainer">
@@ -215,7 +215,7 @@
             <label for="langiNumber">Langi number:</label>
             <input type="text" id="langiNumber">
             
-            <button id="startWorkButton" onclick="alustaTood()">Alusta töötegemist</button>
+            <button id="startWorkButton">Alusta töötegemist</button>
             <div id="workInfo" style="display: none; margin-top: 10px;">
                 <p>Töö käib: <span id="currentLangNumber"></span></p>
             </div>
@@ -239,8 +239,8 @@
                     <p>Täpsus: <span id="accuracyInfo">-</span></p>
                     <p>Viimati uuendatud: <span id="lastUpdateTime">-</span></p>
                 </div>
-                <button id="toggleGpsButton" onclick="toggleGPS()">Käivita GPS jälgimine</button>
-                <button onclick="lisaPraeguneAsukoht()">Lisa praegune asukoht proovitükile</button>
+                <button id="toggleGpsButton">Käivita GPS jälgimine</button>
+                <button id="lisaAsukohtButton">Lisa praegune asukoht proovitükile</button>
             </div>
             
             <label for="kuupaev">Kuupäev:</label>
@@ -252,7 +252,7 @@
             <label for="taimeArv">Taimede arv proovitükis:</label>
             <input type="number" id="taimeArv" min="0">
             
-            <button onclick="lisaProovitukk()">Lisa proovitükk</button>
+            <button id="lisaProovitukkButton">Lisa proovitükk</button>
         </div>
 
         <h3>Proovitükkide andmed</h3>
@@ -280,9 +280,9 @@
             <p id="kokkuvoteTekst">Proovitükke pole veel lisatud.</p>
         </div>
         
-        <button onclick="laadiAndmedTxtFailina()">Laadi andmed alla</button>
-        <button onclick="kustutaAndmed()">Kustuta kõik andmed</button>
-        <button onclick="naitaKaardil()">Näita kõiki proovitükke kaardil</button>
+        <button id="laadiAndmedButton">Laadi andmed alla</button>
+        <button id="kustutaAndmedButton">Kustuta kõik andmed</button>
+        <button id="naitaKaardilButton">Näita kõiki proovitükke kaardil</button>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
@@ -427,7 +427,7 @@
                 
                 // Uuenda ka proovitüki ringi (kui raadius on määratud)
                 const raadius = parseFloat(document.getElementById("raadius").value);
-                if (!isNaN(raadius) {
+                if (!isNaN(raadius)) {
                     proovitukkCircle.setLatLng([lastProovitukkPosition.latitude, lastProovitukkPosition.longitude]);
                     proovitukkCircle.setRadius(raadius);
                     proovitukkCircle.setStyle({opacity: 1});
@@ -493,14 +493,11 @@
                 
                 const hours = Math.floor(timeDiff / (1000 * 60 * 60));
                 const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000;
+                const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
                 
                 document.getElementById("timerDisplay").textContent = 
                     `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
             }, 1000);
-            
-            // Seadistame töö lõpetamise nupu
-            document.getElementById("stopWorkButton").onclick = lõpetaTöö;
         }
         
         // Lisame proovitüki andmed
@@ -703,7 +700,7 @@
                         <td>${gpsText}</td>
                         <td>Töös</td>
                         <td>
-                            <button onclick="kustutaProovitukk(${index})">Kustuta</button>
+                            <button class="kustutaProovitukkButton" data-index="${index}">Kustuta</button>
                         </td>
                     `;
                 });
@@ -730,8 +727,8 @@
                     <td>${gpsText}</td>
                     <td>${proovitukid[0].tööaeg}</td>
                     <td>
-                        <button onclick="kustutaLangiProovitükid('${langiNumber}')">Kustuta kõik selle langi proovitükid</button>
-                        <button onclick="naitaLangiKaardil('${langiNumber}')">Näita kaardil</button>
+                        <button class="kustutaLangiButton" data-langi="${langiNumber}">Kustuta kõik selle langi proovitükid</button>
+                        <button class="naitaLangiButton" data-langi="${langiNumber}">Näita kaardil</button>
                     </td>
                 `;
                 
@@ -752,9 +749,38 @@
                         <td>${gpsText}</td>
                         <td>${proovitukk.tööaeg}</td>
                         <td>
-                            <button onclick="kustutaSalvestatudProovitukk('${proovitukk.workSessionId}')">Kustuta</button>
+                            <button class="kustutaSalvestatudButton" data-id="${proovitukk.workSessionId}">Kustuta</button>
                         </td>
                     `;
+                });
+            });
+            
+            // Lisame sündmuse kuularid uutele nuppudele
+            document.querySelectorAll('.kustutaProovitukkButton').forEach(button => {
+                button.addEventListener('click', function() {
+                    const index = parseInt(this.getAttribute('data-index'));
+                    kustutaProovitukk(index);
+                });
+            });
+            
+            document.querySelectorAll('.kustutaLangiButton').forEach(button => {
+                button.addEventListener('click', function() {
+                    const langiNumber = this.getAttribute('data-langi');
+                    kustutaLangiProovitükid(langiNumber);
+                });
+            });
+            
+            document.querySelectorAll('.naitaLangiButton').forEach(button => {
+                button.addEventListener('click', function() {
+                    const langiNumber = this.getAttribute('data-langi');
+                    naitaLangiKaardil(langiNumber);
+                });
+            });
+            
+            document.querySelectorAll('.kustutaSalvestatudButton').forEach(button => {
+                button.addEventListener('click', function() {
+                    const workSessionId = this.getAttribute('data-id');
+                    kustutaSalvestatudProovitukk(workSessionId);
                 });
             });
         }
@@ -1093,10 +1119,29 @@
             }
         }
         
-        // Laadime salvestatud andmed lehe avamisel
-        window.onload = function() {
+        // Initsialiseerime lehe
+        document.addEventListener('DOMContentLoaded', function() {
             // Määra tänane kuupäev vaikeväärtuseks
             document.getElementById("kuupaev").value = new Date().toISOString().slice(0, 10);
+            
+            // Initsialiseerime kaardi
+            initMap();
+            
+            // Seadistame nuppude sündmused
+            document.getElementById("startWorkButton").addEventListener('click', alustaTood);
+            document.getElementById("toggleGpsButton").addEventListener('click', toggleGPS);
+            document.getElementById("lisaAsukohtButton").addEventListener('click', lisaPraeguneAsukoht);
+            document.getElementById("lisaProovitukkButton").addEventListener('click', lisaProovitukk);
+            document.getElementById("stopWorkButton").addEventListener('click', lõpetaTöö);
+            document.getElementById("laadiAndmedButton").addEventListener('click', laadiAndmedTxtFailina);
+            document.getElementById("kustutaAndmedButton").addEventListener('click', kustutaAndmed);
+            document.getElementById("naitaKaardilButton").addEventListener('click', naitaKaardil);
+            document.getElementById("proovitukkideNupp").addEventListener('click', function() {
+                location.href = 'index.html';
+            });
+            document.getElementById("istutamiseNupp").addEventListener('click', function() {
+                location.href = 'istutamine.html';
+            });
             
             // Kontrollime, kas on pooleliolevaid töid
             const andmed = JSON.parse(localStorage.getItem("proovitukid")) || [];
@@ -1123,10 +1168,7 @@
             
             uuendaTabel();
             uuendaKokkuvote();
-            
-            // Initsialiseerime kaardi
-            initMap();
-        };
+        });
     </script>
 </body>
 </html>
