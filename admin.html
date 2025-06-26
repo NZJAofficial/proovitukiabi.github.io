@@ -11,8 +11,9 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
+            padding: 20px;
         }
         .admin-access-container {
             background-color: white;
@@ -25,14 +26,17 @@
         }
         .admin-panel {
             display: none;
+            max-width: 800px;
+            width: 100%;
         }
-        input[type="password"] {
+        input[type="password"], input[type="text"] {
             padding: 10px;
-            width: 70%;
+            width: 100%;
             border: 1px solid #ddd;
             border-radius: 5px;
             font-size: 16px;
             margin-bottom: 15px;
+            box-sizing: border-box;
         }
         button {
             padding: 10px 20px;
@@ -42,6 +46,7 @@
             border-radius: 5px;
             cursor: pointer;
             font-size: 16px;
+            margin: 5px;
         }
         button:hover {
             background-color: #45a049;
@@ -52,21 +57,19 @@
         }
         
         /* Admin paneeli stiilid */
-        .admin-panel {
-            max-width: 800px;
-            margin: 0 auto;
+        .admin-panel-content {
             background-color: white;
             padding: 30px;
             border-radius: 10px;
             box-shadow: 0 0 20px rgba(0,0,0,0.1);
         }
-        h1 {
+        h1, h2, h3 {
             color: #333;
             text-align: center;
         }
         .code-list {
             margin-top: 20px;
-            max-height: 300px;
+            max-height: 400px;
             overflow-y: auto;
             border: 1px solid #ddd;
             padding: 10px;
@@ -75,16 +78,61 @@
         .code-item {
             display: flex;
             justify-content: space-between;
-            padding: 8px;
+            padding: 10px;
             border-bottom: 1px solid #eee;
+            align-items: center;
         }
         .code-item:last-child {
             border-bottom: none;
         }
-        .code-actions button {
-            margin-left: 10px;
-            padding: 3px 8px;
+        .code-info {
+            flex: 1;
+        }
+        .code-actions {
+            display: flex;
+            align-items: center;
+        }
+        .active-code {
+            background-color: #e8f5e9;
+        }
+        .expired-code {
+            background-color: #ffebee;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-active {
+            background-color: #4CAF50;
+        }
+        .status-expired {
+            background-color: #f44336;
+        }
+        .status-pending {
+            background-color: #FFC107;
+        }
+        .time-left {
             font-size: 12px;
+            color: #666;
+            margin-top: 3px;
+        }
+        select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-left: 10px;
+        }
+        .form-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .form-row label {
+            margin-right: 10px;
+            min-width: 120px;
         }
         button.delete {
             background-color: #f44336;
@@ -92,19 +140,30 @@
         button.delete:hover {
             background-color: #d32f2f;
         }
-        input[type="text"] {
-            padding: 8px;
-            width: 200px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
+        button.renew {
+            background-color: #2196F3;
         }
-        .form-group {
-            margin-bottom: 15px;
+        button.renew:hover {
+            background-color: #0b7dda;
         }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
+        .duration-options {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin: 15px 0;
+        }
+        .duration-btn {
+            margin: 5px;
+            padding: 8px 12px;
+            background-color: #e0e0e0;
+            color: #333;
+        }
+        .duration-btn:hover {
+            background-color: #d0d0d0;
+        }
+        .duration-btn.selected {
+            background-color: #4CAF50;
+            color: white;
         }
     </style>
 </head>
@@ -118,15 +177,29 @@
     </div>
 
     <div class="admin-panel" id="adminPanel">
-        <h1>Admin Paneel - Ligipääsu Koodid</h1>
-        
         <div class="admin-panel-content">
-            <div class="form-group">
-                <label for="newCode">Lisa uus kood:</label>
-                <input type="text" id="newCode" placeholder="Sisesta uus kood">
-                <button onclick="addCode()">Lisa kood</button>
-                <button onclick="generateCodes()">Genereeri 100 uut koodi</button>
+            <h1>Admin Paneel - Ligipääsu Koodid</h1>
+            
+            <div class="form-row">
+                <label for="newCode">Uus kood:</label>
+                <input type="text" id="newCode" placeholder="Sisesta uus kood või jäta tühi automaatseks">
             </div>
+            
+            <div class="duration-options">
+                <h3>Kestvus:</h3>
+                <button class="duration-btn" data-minutes="1">1 MINUT</button>
+                <button class="duration-btn" data-hours="12">12 TUNDI</button>
+                <button class="duration-btn" data-hours="24">24 TUNDI</button>
+                <button class="duration-btn" data-days="7">7 PÄEVA</button>
+                <button class="duration-btn" data-days="14">14 PÄEVA</button>
+                <button class="duration-btn" data-months="1">1 KUU</button>
+                <button class="duration-btn" data-months="6">6 KUUD</button>
+                <button class="duration-btn" data-years="1">1 AASTA</button>
+                <button class="duration-btn selected" data-lifetime="1">ELUAEGNE</button>
+            </div>
+            
+            <button onclick="addCode()">Lisa kood</button>
+            <button onclick="generateCodes()">Genereeri 100 uut koodi</button>
             
             <h3>Kehtivad koodid:</h3>
             <div class="code-list" id="codeList">
@@ -138,6 +211,42 @@
     <script>
         // Admin kood
         const ADMIN_CODE = "Markus360";
+        let selectedDuration = 'lifetime'; // Vaikimisi valik
+        let selectedDurationText = 'ELUAEGNE';
+        
+        // Kestvuse valikud
+        document.querySelectorAll('.duration-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                // Eemalda valik kõigilt nuppudelt
+                document.querySelectorAll('.duration-btn').forEach(b => {
+                    b.classList.remove('selected');
+                });
+                
+                // Lisa valik aktiivsele nupule
+                this.classList.add('selected');
+                
+                // Määra valitud kestvus
+                if (this.dataset.minutes) {
+                    selectedDuration = parseInt(this.dataset.minutes) * 60 * 1000; // minutid millisekunditeks
+                    selectedDurationText = this.textContent;
+                } else if (this.dataset.hours) {
+                    selectedDuration = parseInt(this.dataset.hours) * 60 * 60 * 1000; // tunnid millisekunditeks
+                    selectedDurationText = this.textContent;
+                } else if (this.dataset.days) {
+                    selectedDuration = parseInt(this.dataset.days) * 24 * 60 * 60 * 1000; // päevad millisekunditeks
+                    selectedDurationText = this.textContent;
+                } else if (this.dataset.months) {
+                    selectedDuration = parseInt(this.dataset.months) * 30 * 24 * 60 * 60 * 1000; // kuud millisekunditeks (ligikaudu)
+                    selectedDurationText = this.textContent;
+                } else if (this.dataset.years) {
+                    selectedDuration = parseInt(this.dataset.years) * 365 * 24 * 60 * 60 * 1000; // aastad millisekunditeks (ligikaudu)
+                    selectedDurationText = this.textContent;
+                } else if (this.dataset.lifetime) {
+                    selectedDuration = 'lifetime'; // eluaegne
+                    selectedDurationText = 'ELUAEGNE';
+                }
+            });
+        });
         
         // Kontrolli admin ligipääsu
         function checkAdminAccess() {
@@ -150,6 +259,9 @@
                 document.getElementById('accessForm').style.display = 'none';
                 document.getElementById('adminPanel').style.display = 'block';
                 loadCodes();
+                
+                // Käivita ajakontroll
+                setInterval(checkCodeStatuses, 60000); // Kontrolli iga minut
             } else {
                 errorElement.textContent = 'Vale admin kood!';
             }
@@ -160,7 +272,10 @@
             document.getElementById('accessForm').style.display = 'none';
             document.getElementById('adminPanel').style.display = 'block';
             // Laadi koodid kohe
-            document.addEventListener('DOMContentLoaded', loadCodes);
+            document.addEventListener('DOMContentLoaded', function() {
+                loadCodes();
+                setInterval(checkCodeStatuses, 60000); // Kontrolli iga minut
+            });
         }
         
         // Laadi koodid localStorage'ist
@@ -174,12 +289,56 @@
                 return;
             }
             
+            // Sorteeri koodid: aktiivsed -> aeguvad -> aegunud
+            codes.sort((a, b) => {
+                if (a.status === 'active' && b.status !== 'active') return -1;
+                if (a.status !== 'active' && b.status === 'active') return 1;
+                if (a.status === 'expired' && b.status !== 'expired') return 1;
+                if (a.status !== 'expired' && b.status === 'expired') return -1;
+                return 0;
+            });
+            
             codes.forEach((code, index) => {
                 const codeItem = document.createElement('div');
-                codeItem.className = 'code-item';
+                codeItem.className = `code-item ${code.status === 'active' ? 'active-code' : ''} ${code.status === 'expired' ? 'expired-code' : ''}`;
+                
+                // Arvuta aeg, mis on jäänud
+                let timeLeftText = '';
+                if (code.status === 'active' && code.expiration !== 'lifetime') {
+                    const timeLeft = new Date(code.expiration) - new Date();
+                    if (timeLeft > 0) {
+                        timeLeftText = formatTimeLeft(timeLeft);
+                    } else {
+                        timeLeftText = 'Aegunud';
+                    }
+                } else if (code.status === 'active' && code.expiration === 'lifetime') {
+                    timeLeftText = 'Eluaegne';
+                }
+                
                 codeItem.innerHTML = `
-                    <span>${code}</span>
+                    <div class="code-info">
+                        <div>
+                            <span class="status-indicator ${getStatusClass(code.status)}"></span>
+                            <strong>${code.code}</strong>
+                            ${code.status === 'active' ? `<span class="time-left">${timeLeftText}</span>` : ''}
+                        </div>
+                        <div>
+                            <small>${code.durationText || 'Eluaegne'} | ${code.status === 'active' ? 'Aktiveeritud: ' + formatDate(code.activationTime) : 'Aegunud'}</small>
+                        </div>
+                    </div>
                     <div class="code-actions">
+                        <select id="duration-select-${index}">
+                            <option value="1m">1 MINUT</option>
+                            <option value="12h">12 TUNDI</option>
+                            <option value="24h">24 TUNDI</option>
+                            <option value="7d">7 PÄEVA</option>
+                            <option value="14d">14 PÄEVA</option>
+                            <option value="1M">1 KUU</option>
+                            <option value="6M">6 KUUD</option>
+                            <option value="1y">1 AASTA</option>
+                            <option value="lifetime" selected>ELUAEGNE</option>
+                        </select>
+                        <button class="renew" onclick="renewCode(${index})">Uuenda</button>
                         <button class="delete" onclick="deleteCode(${index})">Kustuta</button>
                     </div>
                 `;
@@ -189,19 +348,34 @@
         
         // Lisa uus kood
         function addCode() {
-            const newCode = document.getElementById('newCode').value.trim();
+            let newCode = document.getElementById('newCode').value.trim();
+            
+            // Kui koodi ei sisestata, genereeri juhuslik
             if (!newCode) {
-                alert('Palun sisesta kood!');
-                return;
+                const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+                const codeLength = 8;
+                for (let i = 0; i < codeLength; i++) {
+                    newCode += characters.charAt(Math.floor(Math.random() * characters.length));
+                }
             }
             
             const codes = JSON.parse(localStorage.getItem('accessCodes')) || [];
-            if (codes.includes(newCode)) {
+            
+            // Kontrolli, et kood poleks juba olemas
+            if (codes.some(c => c.code === newCode)) {
                 alert('See kood on juba olemas!');
                 return;
             }
             
-            codes.push(newCode);
+            // Lisa uus kood
+            codes.push({
+                code: newCode,
+                status: 'pending', // Ootel
+                durationText: selectedDurationText,
+                expiration: selectedDuration === 'lifetime' ? 'lifetime' : null,
+                activationTime: null
+            });
+            
             localStorage.setItem('accessCodes', JSON.stringify(codes));
             loadCodes();
             document.getElementById('newCode').value = '';
@@ -210,7 +384,7 @@
         // Genereeri 100 uut koodi
         function generateCodes() {
             const codes = JSON.parse(localStorage.getItem('accessCodes')) || [];
-            const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Eemaldatud segavad tähed/numbrid
+            const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
             const codeLength = 8;
             
             for (let i = 0; i < 100; i++) {
@@ -220,10 +394,75 @@
                 }
                 
                 // Kontrolli, et kood poleks juba olemas
-                if (!codes.includes(code)) {
-                    codes.push(code);
+                if (!codes.some(c => c.code === code)) {
+                    codes.push({
+                        code: code,
+                        status: 'pending', // Ootel
+                        durationText: selectedDurationText,
+                        expiration: selectedDuration === 'lifetime' ? 'lifetime' : null,
+                        activationTime: null
+                    });
                 }
             }
+            
+            localStorage.setItem('accessCodes', JSON.stringify(codes));
+            loadCodes();
+        }
+        
+        // Uuenda koodi kehtivusaeg
+        function renewCode(index) {
+            const codes = JSON.parse(localStorage.getItem('accessCodes')) || [];
+            const durationSelect = document.getElementById(`duration-select-${index}`);
+            const selectedValue = durationSelect.value;
+            
+            let expiration, durationText;
+            
+            switch(selectedValue) {
+                case '1m':
+                    expiration = new Date(Date.now() + 60000).toISOString();
+                    durationText = '1 MINUT';
+                    break;
+                case '12h':
+                    expiration = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+                    durationText = '12 TUNDI';
+                    break;
+                case '24h':
+                    expiration = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+                    durationText = '24 TUNDI';
+                    break;
+                case '7d':
+                    expiration = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+                    durationText = '7 PÄEVA';
+                    break;
+                case '14d':
+                    expiration = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+                    durationText = '14 PÄEVA';
+                    break;
+                case '1M':
+                    expiration = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+                    durationText = '1 KUU';
+                    break;
+                case '6M':
+                    expiration = new Date(Date.now() + 6 * 30 * 24 * 60 * 60 * 1000).toISOString();
+                    durationText = '6 KUUD';
+                    break;
+                case '1y':
+                    expiration = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+                    durationText = '1 AASTA';
+                    break;
+                case 'lifetime':
+                    expiration = 'lifetime';
+                    durationText = 'ELUAEGNE';
+                    break;
+            }
+            
+            codes[index] = {
+                ...codes[index],
+                status: 'active',
+                expiration: expiration,
+                durationText: durationText,
+                activationTime: new Date().toISOString()
+            };
             
             localStorage.setItem('accessCodes', JSON.stringify(codes));
             loadCodes();
@@ -237,6 +476,54 @@
                 localStorage.setItem('accessCodes', JSON.stringify(codes));
                 loadCodes();
             }
+        }
+        
+        // Kontrolli koodide staatust
+        function checkCodeStatuses() {
+            const codes = JSON.parse(localStorage.getItem('accessCodes')) || [];
+            let needsUpdate = false;
+            
+            codes.forEach(code => {
+                if (code.status === 'active' && code.expiration !== 'lifetime') {
+                    if (new Date(code.expiration) < new Date()) {
+                        code.status = 'expired';
+                        needsUpdate = true;
+                    }
+                }
+            });
+            
+            if (needsUpdate) {
+                localStorage.setItem('accessCodes', JSON.stringify(codes));
+                loadCodes();
+            }
+        }
+        
+        // Abifunktsioonid
+        function getStatusClass(status) {
+            switch(status) {
+                case 'active': return 'status-active';
+                case 'expired': return 'status-expired';
+                default: return 'status-pending';
+            }
+        }
+        
+        function formatTimeLeft(ms) {
+            const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+            
+            let result = '';
+            if (days > 0) result += `${days}p `;
+            if (hours > 0) result += `${hours}t `;
+            if (minutes > 0) result += `${minutes}min`;
+            
+            return result.trim() || '< 1min';
+        }
+        
+        function formatDate(dateString) {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('et-EE') + ' ' + date.toLocaleTimeString('et-EE');
         }
     </script>
 </body>
