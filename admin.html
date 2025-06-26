@@ -346,40 +346,46 @@
             });
         }
         
-        // Lisa uus kood
-        function addCode() {
-            let newCode = document.getElementById('newCode').value.trim();
-            
-            // Kui koodi ei sisestata, genereeri juhuslik
-            if (!newCode) {
-                const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-                const codeLength = 8;
-                for (let i = 0; i < codeLength; i++) {
-                    newCode += characters.charAt(Math.floor(Math.random() * characters.length));
-                }
-            }
-            
-            const codes = JSON.parse(localStorage.getItem('accessCodes')) || [];
-            
-            // Kontrolli, et kood poleks juba olemas
-            if (codes.some(c => c.code === newCode)) {
-                alert('See kood on juba olemas!');
-                return;
-            }
-            
-            // Lisa uus kood
-            codes.push({
-                code: newCode,
-                status: 'pending', // Ootel
-                durationText: selectedDurationText,
-                expiration: selectedDuration === 'lifetime' ? 'lifetime' : null,
-                activationTime: null
-            });
-            
-            localStorage.setItem('accessCodes', JSON.stringify(codes));
-            loadCodes();
-            document.getElementById('newCode').value = '';
+       // Lisa uus kood
+function addCode() {
+    let newCode = document.getElementById('newCode').value.trim();
+    
+    if (!newCode) {
+        const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        const codeLength = 8;
+        newCode = '';
+        for (let i = 0; i < codeLength; i++) {
+            newCode += characters.charAt(Math.floor(Math.random() * characters.length));
         }
+    }
+    
+    const codes = JSON.parse(localStorage.getItem('accessCodes')) || [];
+    
+    if (codes.some(c => c.code === newCode)) {
+        alert('See kood on juba olemas!');
+        return;
+    }
+    
+    // Määra kehtivusaeg
+    let expiration;
+    if (selectedDuration === 'lifetime') {
+        expiration = 'lifetime';
+    } else {
+        expiration = new Date(Date.now() + selectedDuration).toISOString();
+    }
+    
+    codes.push({
+        code: newCode,
+        status: 'active', // Kohe aktiivne
+        durationText: selectedDurationText,
+        expiration: expiration,
+        activationTime: new Date().toISOString()
+    });
+    
+    localStorage.setItem('accessCodes', JSON.stringify(codes));
+    loadCodes();
+    document.getElementById('newCode').value = '';
+}
         
         // Genereeri 100 uut koodi
         function generateCodes() {
