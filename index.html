@@ -285,7 +285,16 @@
         <button id="kustutaAndmedButton">Kustuta kõik andmed</button>
         <button id="naitaKaardilButton">Näita kõiki proovitükke kaardil</button>
     </div>
-
+<script>
+    // Kontrolli ligipääsu ja rakenda blurred efekt kui vaja
+    document.addEventListener('DOMContentLoaded', function() {
+        if (!sessionStorage.getItem('hasAccess')) {
+            document.body.classList.add('blurred');
+            alert('Teil pole ligipääsu! Suuname teid ligipääsu lehele.');
+            window.location.href = 'access.html';
+        }
+    });
+</script>
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script>
         // Muutujad tööaja jälgimiseks
