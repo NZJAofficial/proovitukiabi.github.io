@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Paneel - Ligipääs</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .admin-access-container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+        .admin-panel {
+            display: none;
+        }
+        input[type="password"] {
+            padding: 10px;
+            width: 70%;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .error-message {
+            color: red;
+            margin-top: 10px;
+        }
+        
+        /* Admin paneeli stiilid */
+        .admin-panel {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .code-list {
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .code-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        .code-item:last-child {
+            border-bottom: none;
+        }
+        .code-actions button {
+            margin-left: 10px;
+            padding: 3px 8px;
+            font-size: 12px;
+        }
+        button.delete {
+            background-color: #f44336;
+        }
+        button.delete:hover {
+            background-color: #d32f2f;
+        }
+        input[type="text"] {
+            padding: 8px;
+            width: 200px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-access-container" id="accessForm">
+        <h1>Admin Paneel - Ligipääs</h1>
+        <p>Sisesta admin kood juurdepääsuks</p>
+        <input type="password" id="adminCode" placeholder="Sisesta admin kood">
+        <button onclick="checkAdminAccess()">Sisene</button>
+        <div id="errorMessage" class="error-message"></div>
+    </div>
+
+    <div class="admin-panel" id="adminPanel">
+        <h1>Admin Paneel - Ligipääsu Koodid</h1>
+        
+        <div class="admin-panel-content">
+            <div class="form-group">
+                <label for="newCode">Lisa uus kood:</label>
+                <input type="text" id="newCode" placeholder="Sisesta uus kood">
+                <button onclick="addCode()">Lisa kood</button>
+                <button onclick="generateCodes()">Genereeri 100 uut koodi</button>
+            </div>
+            
+            <h3>Kehtivad koodid:</h3>
+            <div class="code-list" id="codeList">
+                <!-- Koodid kuvatakse siin -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Admin kood
+        const ADMIN_CODE = "893573(&=#nB8\"NsD(#\"=";
+        
+        // Kontrolli admin ligipääsu
+        function checkAdminAccess() {
+            const enteredCode = document.getElementById('adminCode').value;
+            const errorElement = document.getElementById('errorMessage');
+            
+            if (enteredCode === ADMIN_CODE) {
+                // Salvesta, et admin on sisse loginud
+                sessionStorage.setItem('adminAccess', 'true');
+                document.getElementById('accessForm').style.display = 'none';
+                document.getElementById('adminPanel').style.display = 'block';
+                loadCodes();
+            } else {
+                errorElement.textContent = 'Vale admin kood!';
+            }
+        }
+        
+        // Kontrolli, kas admin on juba sisse loginud
+        if (sessionStorage.getItem('adminAccess') === 'true') {
+            document.getElementById('accessForm').style.display = 'none';
+            document.getElementById('adminPanel').style.display = 'block';
+            // Laadi koodid kohe
+            document.addEventListener('DOMContentLoaded', loadCodes);
+        }
+        
+        // Laadi koodid localStorage'ist
+        function loadCodes() {
+            const codes = JSON.parse(localStorage.getItem('accessCodes')) || [];
+            const codeList = document.getElementById('codeList');
+            codeList.innerHTML = '';
+            
+            if (codes.length === 0) {
+                codeList.innerHTML = '<p>Koode pole veel lisatud</p>';
+                return;
+            }
+            
+            codes.forEach((code, index) => {
+                const codeItem = document.createElement('div');
+                codeItem.className = 'code-item';
+                codeItem.innerHTML = `
+                    <span>${code}</span>
+                    <div class="code-actions">
+                        <button class="delete" onclick="deleteCode(${index})">Kustuta</button>
+                    </div>
+                `;
+                codeList.appendChild(codeItem);
+            });
+        }
+        
+        // Lisa uus kood
+        function addCode() {
+            const newCode = document.getElementById('newCode').value.trim();
+            if (!newCode) {
+                alert('Palun sisesta kood!');
+                return;
+            }
+            
+            const codes = JSON.parse(localStorage.getItem('accessCodes')) || [];
+            if (codes.includes(newCode)) {
+                alert('See kood on juba olemas!');
+                return;
+            }
+            
+            codes.push(newCode);
+            localStorage.setItem('accessCodes', JSON.stringify(codes));
+            loadCodes();
+            document.getElementById('newCode').value = '';
+        }
+        
+        // Genereeri 100 uut koodi
+        function generateCodes() {
+            const codes = JSON.parse(localStorage.getItem('accessCodes')) || [];
+            const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Eemaldatud segavad tähed/numbrid
+            const codeLength = 8;
+            
+            for (let i = 0; i < 100; i++) {
+                let code = '';
+                for (let j = 0; j < codeLength; j++) {
+                    code += characters.charAt(Math.floor(Math.random() * characters.length));
+                }
+                
+                // Kontrolli, et kood poleks juba olemas
+                if (!codes.includes(code)) {
+                    codes.push(code);
+                }
+            }
+            
+            localStorage.setItem('accessCodes', JSON.stringify(codes));
+            loadCodes();
+        }
+        
+        // Kustuta kood
+        function deleteCode(index) {
+            if (confirm('Kas oled kindel, et soovid selle koodi kustutada?')) {
+                const codes = JSON.parse(localStorage.getItem('accessCodes')) || [];
+                codes.splice(index, 1);
+                localStorage.setItem('accessCodes', JSON.stringify(codes));
+                loadCodes();
+            }
+        }
+    </script>
+</body>
+</html>
