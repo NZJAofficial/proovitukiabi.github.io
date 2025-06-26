@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metsatagavara Kalkulaator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #2c3e50;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .results {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e9f7ef;
+            border-radius: 4px;
+        }
+        .sample {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            border-left: 4px solid #4CAF50;
+        }
+        .summary {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #e7f3fe;
+            border-radius: 4px;
+        }
+        .hidden {
+            display: none;
+        }
+        .species-code {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .tree-type-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .tree-type-selector select {
+            flex: 1;
+        }
+        .tree-type-selector input {
+            flex: 2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Metsatagavara Kalkulaator</h1>
+        
+        <div id="instructions">
+            <h2>Kasutusjuhend</h2>
+            <p>1. Vali puuliikide rühm ja täpsusta puuliik koodiga (nt 12KS88KU).</p>
+            <p>2. Sisesta kõrgus (m) ja rinnaspindala (G, m²).</p>
+            <p>3. Lisa proovitükk nuppu "Lisa proovitükk" abil.</p>
+            <p>4. Kui oled lisanud kõik proovitükid, klõpsa nuppu "Arvuta koosseis".</p>
+            <p>5. Tühjenda andmed nuppu "Tühjenda kõik" abil.</p>
+        </div>
+        
+        <div class="tree-type-selector">
+            <div class="form-group" style="flex: 1;">
+                <label for="treeGroup">Puuliikide rühm:</label>
+                <select id="treeGroup">
+                    <option value="pine">Mänd, lehis, seedermänd</option>
+                    <option value="spruce">Kuusk, nulg, ebatsuuga, TO</option>
+                    <option value="birch">Kask, pärn</option>
+                    <option value="aspen">Haab, sanglepp, hall lepp</option>
+                    <option value="oak">Tamm, saar, vaher, jalakas, TL</option>
+                </select>
+            </div>
+            <div class="form-group" style="flex: 2;">
+                <label for="treeCode">Puuliigi kood (nt 12KS88KU):</label>
+                <input type="text" id="treeCode" placeholder="Sisesta puuliigi kood">
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="height">Kõrgus (m):</label>
+            <input type="number" id="height" min="6" max="35" step="1" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="gValue">Rinnaspindala (G, m²):</label>
+            <input type="number" id="gValue" min="0" step="0.1" required>
+        </div>
+        
+        <button id="addSample">Lisa proovitükk</button>
+        <button id="calculateComposition">Arvuta koosseis</button>
+        <button id="clearAll">Tühjenda kõik</button>
+        
+        <div id="sampleResults"></div>
+        
+        <div id="compositionResults" class="summary hidden">
+            <h2>Koosseisu tulemused</h2>
+            <table id="compositionTable">
+                <thead>
+                    <tr>
+                        <th>Puuliigi kood</th>
+                        <th>Puid hektarile</th>
+                        <th>Protsent</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        
+        <div class="results hidden" id="standardTableInfo">
+            <h2>Standarttabeli andmed</h2>
+            <p>Allpool on näidatud valitud puuliikide rühma standarttabeli väärtused:</p>
+            <table id="standardTableDisplay">
+                <thead>
+                    <tr>
+                        <th>Kõrgus (m)</th>
+                        <th>M (tm)</th>
+                        <th>G (m²)</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Standardtabeli andmed
+        const standardTable = {
+            pine: [
+                {height: 6, M: 84, G: 18.9}, {height: 7, M: 102, G: 21.3}, {height: 8, M: 119, G: 23.3},
+                {height: 9, M: 137, G: 25.0}, {height: 10, M: 155, G: 26.5}, {height: 11, M: 173, G: 27.8},
+                {height: 12, M: 190, G: 28.9}, {height: 13, M: 208, G: 29.9}, {height: 14, M: 225, G: 30.8},
+                {height: 15, M: 243, G: 31.6}, {height: 16, M: 260, G: 32.3}, {height: 17, M: 278, G: 32.9},
+                {height: 18, M: 295, G: 33.5}, {height: 19, M: 313, G: 34.0}, {height: 20, M: 330, G: 34.4},
+                {height: 21, M: 347, G: 34.9}, {height: 22, M: 364, G: 35.2}, {height: 23, M: 381, G: 35.6},
+                {height: 24, M: 398, G: 35.9}, {height: 25, M: 415, G: 36.3}, {height: 26, M: 432, G: 36.6},
+                {height: 27, M: 449, G: 36.8}, {height: 28, M: 466, G: 37.1}, {height: 29, M: 483, G: 37.4},
+                {height: 30, M: 499, G: 37.7}, {height: 31, M: 516, G: 37.9}, {height: 32, M: 533, G: 38.2},
+                {height: 33, M: 549, G: 38.5}, {height: 34, M: 565, G: 38.8}, {height: 35, M: 582, G: 39.0}
+            ],
+            spruce: [
+                {height: 6, M: 69, G: 15.8}, {height: 7, M: 85, G: 17.5}, {height: 8, M: 101, G: 19.1},
+                {height: 9, M: 117, G: 20.5}, {height: 10, M: 134, G: 21.9}, {height: 11, M: 152, G: 23.2},
+                {height: 12, M: 170, G: 24.5}, {height: 13, M: 188, G: 25.7}, {height: 14, M: 207, G: 26.8},
+                {height: 15, M: 226, G: 27.9}, {height: 16, M: 246, G: 29.0}, {height: 17, M: 267, G: 30.0},
+                {height: 18, M: 288, G: 31.0}, {height: 19, M: 310, G: 32.0}, {height: 20, M: 332, G: 33.0},
+                {height: 21, M: 355, G: 34.0}, {height: 22, M: 379, G: 34.9}, {height: 23, M: 403, G: 35.9},
+                {height: 24, M: 428, G: 36.8}, {height: 25, M: 454, G: 37.7}, {height: 26, M: 480, G: 38.6},
+                {height: 27, M: 507, G: 39.5}, {height: 28, M: 535, G: 40.4}, {height: 29, M: 564, G: 41.3},
+                {height: 30, M: 594, G: 42.2}, {height: 31, M: 624, G: 43.1}, {height: 32, M: 655, G: 44.0},
+                {height: 33, M: 687, G: 44.8}, {height: 34, M: 720, G: 45.7}, {height: 35, M: 754, G: 46.6}
+            ],
+            birch: [
+                {height: 6, M: 53, G: 12.2}, {height: 7, M: 59, G: 13.1}, {height: 8, M: 67, G: 14.1},
+                {height: 9, M: 76, G: 15.1}, {height: 10, M: 86, G: 16.1}, {height: 11, M: 97, G: 17.1},
+                {height: 12, M: 110, G: 18.1}, {height: 13, M: 123, G: 19.1}, {height: 14, M: 138, G: 20.1},
+                {height: 15, M: 153, G: 21.0}, {height: 16, M: 170, G: 22.0}, {height: 17, M: 187, G: 23.0},
+                {height: 18, M: 205, G: 23.9}, {height: 19, M: 223, G: 24.8}, {height: 20, M: 242, G: 25.7},
+                {height: 21, M: 262, G: 26.6}, {height: 22, M: 282, G: 27.5}, {height: 23, M: 302, G: 28.3},
+                {height: 24, M: 323, G: 29.2}, {height: 25, M: 344, G: 30.0}, {height: 26, M: 365, G: 30.7},
+                {height: 27, M: 386, G: 31.5}, {height: 28, M: 408, G: 32.2}, {height: 29, M: 429, G: 33.0},
+                {height: 30, M: 450, G: 33.7}, {height: 31, M: 471, G: 34.3}, {height: 32, M: 492, G: 35.0},
+                {height: 33, M: 512, G: 35.6}, {height: 34, M: 532, G: 36.2}, {height: 35, M: 552, G: 36.7}
+            ],
+            aspen: [
+                {height: 6, M: 56, G: 14.2}, {height: 7, M: 64, G: 15.4}, {height: 8, M: 74, G: 16.7},
+                {height: 9, M: 86, G: 17.8}, {height: 10, M: 98, G: 19.0}, {height: 11, M: 112, G: 20.2},
+                {height: 12, M: 126, G: 21.4}, {height: 13, M: 142, G: 22.6}, {height: 14, M: 159, G: 23.7},
+                {height: 15, M: 177, G: 24.9}, {height: 16, M: 195, G: 26.0}, {height: 17, M: 215, G: 27.1},
+                {height: 18, M: 235, G: 28.2}, {height: 19, M: 256, G: 29.3}, {height: 20, M: 278, G: 30.4},
+                {height: 21, M: 301, G: 31.5}, {height: 22, M: 324, G: 32.6}, {height: 23, M: 348, G: 33.6},
+                {height: 24, M: 372, G: 34.6}, {height: 25, M: 397, G: 35.7}, {height: 26, M: 422, G: 36.7},
+                {height: 27, M: 448, G: 37.7}, {height: 28, M: 474, G: 38.7}, {height: 29, M: 500, G: 39.6},
+                {height: 30, M: 527, G: 40.6}, {height: 31, M: 554, G: 41.5}, {height: 32, M: 580, G: 42.5},
+                {height: 33, M: 608, G: 43.4}, {height: 34, M: 635, G: 44.3}, {height: 35, M: 662, G: 45.2}
+            ],
+            oak: [
+                {height: 6, M: 49, G: 13.1}, {height: 7, M: 60, G: 14.4}, {height: 8, M: 72, G: 15.7},
+                {height: 9, M: 85, G: 16.9}, {height: 10, M: 99, G: 18.1}, {height: 11, M: 113, G: 19.2},
+                {height: 12, M: 128, G: 20.3}, {height: 13, M: 143, G: 21.4}, {height: 14, M: 160, G: 22.5},
+                {height: 15, M: 176, G: 23.5}, {height: 16, M: 194, G: 24.5}, {height: 17, M: 212, G: 25.5},
+                {height: 18, M: 230, G: 26.5}, {height: 19, M: 249, G: 27.4}, {height: 20, M: 269, G: 28.4},
+                {height: 21, M: 289, G: 29.3}, {height: 22, M: 310, G: 30.2}, {height: 23, M: 331, G: 31.1},
+                {height: 24, M: 353, G: 32.0}, {height: 25, M: 375, G: 32.8}, {height: 26, M: 397, G: 33.7},
+                {height: 27, M: 420, G: 34.5}, {height: 28, M: 444, G: 35.4}, {height: 29, M: 467, G: 36.2},
+                {height: 30, M: 491, G: 37.0}, {height: 31, M: 516, G: 37.7}, {height: 32, M: 541, G: 38.5},
+                {height: 33, M: 566, G: 39.3}, {height: 34, M: 591, G: 40.0}, {height: 35, M: 617, G: 40.7}
+            ]
+        };
+
+        // Proovitükkide massiiv
+        let samples = [];
+
+        // Lisa proovitükk
+        document.getElementById('addSample').addEventListener('click', function() {
+            const treeGroup = document.getElementById('treeGroup').value;
+            const treeCode = document.getElementById('treeCode').value.trim() || 
+                             document.getElementById('treeGroup').options[document.getElementById('treeGroup').selectedIndex].text;
+            const height = parseInt(document.getElementById('height').value);
+            const gValue = parseFloat(document.getElementById('gValue').value);
+            
+            if (!treeCode) {
+                alert('Palun sisesta puuliigi kood!');
+                return;
+            }
+            
+            // Leia standardtabelist vastavad väärtused
+            const standardValues = standardTable[treeGroup].find(item => item.height === height);
+            
+            if (!standardValues) {
+                alert('Valitud kõrgusele ei leitud andmeid standardtabelist!');
+                return;
+            }
+            
+            const Gn = standardValues.G;
+            const Mn = standardValues.M;
+            
+            // Arvuta täius (T)
+            const T = (gValue / Gn) * 100;
+            
+            // Arvuta puude arv hektarile (N)
+            const N = (T * Mn) / 100;
+            
+            // Lisa proovitükk massiivi
+            samples.push({
+                treeGroup: treeGroup,
+                treeCode: treeCode,
+                height: height,
+                gValue: gValue,
+                Gn: Gn,
+                Mn: Mn,
+                T: T,
+                N: N
+            });
+            
+            // Kuva tulemused
+            displaySampleResults();
+            
+            // Kuva standardtabeli andmed
+            displayStandardTable(treeGroup);
+            
+            // Tühjenda sisestusväljad
+            document.getElementById('treeCode').value = '';
+            document.getElementById('height').value = '';
+            document.getElementById('gValue').value = '';
+        });
+        
+        // Arvuta koosseis
+        document.getElementById('calculateComposition').addEventListener('click', function() {
+            if (samples.length === 0) {
+                alert('Palun lisa vähemalt üks proovitükk enne koosseisu arvutamist!');
+                return;
+            }
+            
+            calculateComposition();
+        });
+        
+        // Tühjenda kõik
+        document.getElementById('clearAll').addEventListener('click', function() {
+            samples = [];
+            document.getElementById('sampleResults').innerHTML = '';
+            document.getElementById('compositionResults').classList.add('hidden');
+            document.getElementById('standardTableInfo').classList.add('hidden');
+        });
+        
+        // Kuva proovitükkide tulemused
+        function displaySampleResults() {
+            const resultsDiv = document.getElementById('sampleResults');
+            resultsDiv.innerHTML = '<h2>Proovitükid</h2>';
+            
+            samples.forEach((sample, index) => {
+                const sampleDiv = document.createElement('div');
+                sampleDiv.className = 'sample';
+                sampleDiv.innerHTML = `
+                    <h3>Proovitükk ${index + 1} <span class="species-code">${sample.treeCode}</span></h3>
+                    <p><strong>Puuliikide rühm:</strong> ${document.getElementById('treeGroup').options[document.getElementById('treeGroup').selectedIndex].text}</p>
+                    <p><strong>Kõrgus:</strong> ${sample.height} m</p>
+                    <p><strong>Rinnaspindala (G):</strong> ${sample.gValue} m²</p>
+                    <p><strong>Standardtabeli G (Gn):</strong> ${sample.Gn} m²</p>
+                    <p><strong>Standardtabeli M (Mn):</strong> ${sample.Mn} tm</p>
+                    <p><strong>Täius (T):</strong> ${sample.T.toFixed(2)}%</p>
+                    <p><strong>Puid hektarile (N):</strong> ${Math.round(sample.N)}</p>
+                `;
+                resultsDiv.appendChild(sampleDiv);
+            });
+        }
+        
+        // Kuva standardtabeli andmed
+        function displayStandardTable(treeGroup) {
+            const tableDiv = document.getElementById('standardTableInfo');
+            const tableBody = document.getElementById('standardTableDisplay').querySelector('tbody');
+            
+            tableBody.innerHTML = '';
+            
+            standardTable[treeGroup].forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.height}</td>
+                    <td>${item.M}</td>
+                    <td>${item.G}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+            
+            tableDiv.classList.remove('hidden');
+        }
+        
+        // Arvuta koosseis
+        function calculateComposition() {
+            // Grupeeri proovitükid puuliigi koodi järgi
+            const composition = {};
+            
+            samples.forEach(sample => {
+                if (!composition[sample.treeCode]) {
+                    composition[sample.treeCode] = {
+                        count: 0,
+                        totalN: 0
+                    };
+                }
+                
+                composition[sample.treeCode].count++;
+                composition[sample.treeCode].totalN += sample.N;
+            });
+            
+            // Arvuta keskmised väärtused
+            const compositionArray = [];
+            let totalTrees = 0;
+            
+            for (const treeCode in composition) {
+                const avgN = composition[treeCode].totalN / composition[treeCode].count;
+                compositionArray.push({
+                    treeCode: treeCode,
+                    avgN: avgN
+                });
+                totalTrees += avgN;
+            }
+            
+            // Arvuta protsendid
+            compositionArray.forEach(item => {
+                item.percentage = (item.avgN / totalTrees) * 100;
+            });
+            
+            // Sorteeri protsendi järgi kahanevalt
+            compositionArray.sort((a, b) => b.percentage - a.percentage);
+            
+            // Kuva tulemused
+            const tableBody = document.getElementById('compositionTable').querySelector('tbody');
+            tableBody.innerHTML = '';
+            
+            compositionArray.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.treeCode}</td>
+                    <td>${Math.round(item.avgN)}</td>
+                    <td>${item.percentage.toFixed(1)}%</td>
+                `;
+                tableBody.appendChild(row);
+            });
+            
+            document.getElementById('compositionResults').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
