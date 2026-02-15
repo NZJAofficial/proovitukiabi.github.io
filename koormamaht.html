@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forvarderi koorma arvutamine</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+        }
+        body {
+            background: #eaf2e6;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 700px;
+            width: 100%;
+            background: white;
+            border-radius: 40px;
+            box-shadow: 0 20px 30px rgba(30, 60, 30, 0.2);
+            padding: 35px 30px;
+        }
+        h1 {
+            color: #1b4c2c;
+            font-weight: 700;
+            font-size: 2.2rem;
+            margin-top: 0;
+            margin-bottom: 10px;
+            border-left: 10px solid #2f8e4a;
+            padding-left: 20px;
+        }
+        .sub {
+            color: #2d5a3a;
+            margin-left: 30px;
+            margin-bottom: 30px;
+            font-size: 1.1rem;
+        }
+        .inputs-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+            background: #dff0e5;
+            padding: 30px;
+            border-radius: 40px;
+            margin: 20px 0 25px;
+        }
+        .row {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            justify-content: space-evenly;
+        }
+        .input-group {
+            flex: 1 1 200px;
+            min-width: 170px;
+        }
+        .input-group label {
+            display: block;
+            font-weight: 600;
+            color: #154f26;
+            margin-bottom: 8px;
+            font-size: 1.2rem;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 15px 18px;
+            border: 3px solid #278544;
+            border-radius: 40px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #0a3b1c;
+            background: white;
+            transition: 0.2s;
+        }
+        .input-group input:focus {
+            outline: none;
+            border-color: #f4b740;
+            box-shadow: 0 0 0 4px rgba(244, 183, 64, 0.3);
+        }
+        .coeff-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin: 20px 0 10px;
+            background: #c5e0cf;
+            padding: 20px 30px;
+            border-radius: 40px;
+        }
+        .coeff-box {
+            flex: 2 1 250px;
+        }
+        .coeff-box label {
+            font-weight: 600;
+            color: #154f26;
+            font-size: 1.2rem;
+            display: block;
+            margin-bottom: 8px;
+        }
+        .coeff-box input {
+            width: 100%;
+            padding: 15px 18px;
+            border: 3px solid #278544;
+            border-radius: 40px;
+            font-size: 1.2rem;
+            background: white;
+        }
+        button {
+            background: #1d833c;
+            border: none;
+            color: white;
+            font-weight: 700;
+            font-size: 1.4rem;
+            padding: 15px 40px;
+            border-radius: 60px;
+            cursor: pointer;
+            box-shadow: 0 7px 0 #0e5128;
+            transition: 0.1s ease;
+            border: 2px solid #166932;
+            flex: 1 1 auto;
+        }
+        button:hover {
+            background: #2ea152;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 0 #0e5128;
+        }
+        button:active {
+            transform: translateY(5px);
+            box-shadow: 0 2px 0 #0e5128;
+        }
+        .results {
+            background: #154f26;
+            color: white;
+            border-radius: 50px;
+            padding: 30px 35px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            gap: 30px;
+            font-size: 1.5rem;
+            margin-top: 30px;
+            box-shadow: inset 0 -5px 0 #0a341a;
+        }
+        .result-item {
+            background: rgba(255,255,255,0.15);
+            padding: 15px 30px;
+            border-radius: 60px;
+        }
+        .result-item span {
+            font-weight: 800;
+            font-size: 2rem;
+            margin-left: 15px;
+            color: #ffde9e;
+        }
+        .info {
+            margin-top: 25px;
+            color: #2e6b43;
+            background: #f0fcf3;
+            padding: 15px 25px;
+            border-radius: 40px;
+            border: 2px dashed #60a37c;
+            font-size: 1rem;
+        }
+        .info code {
+            background: #cbe8d6;
+            padding: 4px 10px;
+            border-radius: 30px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🌲 Forvarderi koorma arvutus</h1>
+    <div class="sub">Sisesta mõõdud meetrites</div>
+
+    <!-- Sisestusväljad vastavalt soovile: H1, L1 esimesel real; H2, L2 teisel real; M kolmandal real -->
+    <div class="inputs-grid">
+        <div class="row">
+            <div class="input-group">
+                <label>H₁ (kõrgus 1)</label>
+                <input type="number" id="h1" step="any" value="1.2" placeholder="0.0">
+            </div>
+            <div class="input-group">
+                <label>L₁ (pikkus 1)</label>
+                <input type="number" id="l1" step="any" value="2.5" placeholder="0.0">
+            </div>
+        </div>
+        <div class="row">
+            <div class="input-group">
+                <label>H₂ (kõrgus 2)</label>
+                <input type="number" id="h2" step="any" value="1.5" placeholder="0.0">
+            </div>
+            <div class="input-group">
+                <label>L₂ (pikkus 2)</label>
+                <input type="number" id="l2" step="any" value="2.2" placeholder="0.0">
+            </div>
+        </div>
+        <div class="row">
+            <div class="input-group">
+                <label>M (laius / pikkus)</label>
+                <input type="number" id="m" step="any" value="2.4" placeholder="0.0">
+            </div>
+        </div>
+    </div>
+
+    <!-- Koefitsient ja arvutusnupp -->
+    <div class="coeff-row">
+        <div class="coeff-box">
+            <label>📉 Koefitsient (tm/m³, nt 0.65)</label>
+            <input type="number" id="coeff" step="0.01" min="0" max="1.5" placeholder="0.65">
+        </div>
+        <button id="calculateBtn">Arvuta</button>
+    </div>
+
+    <!-- Tulemused -->
+    <div class="results">
+        <div class="result-item">📦 Lahtine maht <span id="volM3">0.00</span> m³</div>
+        <div class="result-item">🪵 Tihumaht <span id="volTm">0.00</span> tm</div>
+    </div>
+
+    <div class="info">
+        ✅ <strong>Valem:</strong> <code>(H₁ × L₁ + H₂ × L₂) × M</code> (kõik meetrites).<br>
+        ✅ Kui koefitsient on sisestatud, korrutatakse lahtine maht sellega → tihumaht (tm).
+    </div>
+</div>
+
+<script>
+    (function() {
+        const h1 = document.getElementById('h1');
+        const l1 = document.getElementById('l1');
+        const h2 = document.getElementById('h2');
+        const l2 = document.getElementById('l2');
+        const m = document.getElementById('m');
+        const coeff = document.getElementById('coeff');
+        const volM3Span = document.getElementById('volM3');
+        const volTmSpan = document.getElementById('volTm');
+        const btn = document.getElementById('calculateBtn');
+
+        function calculate() {
+            // loeme väärtused (kui tühi või NaN, siis 0)
+            const H1 = parseFloat(h1.value) || 0;
+            const L1 = parseFloat(l1.value) || 0;
+            const H2 = parseFloat(h2.value) || 0;
+            const L2 = parseFloat(l2.value) || 0;
+            const M = parseFloat(m.value) || 0;
+
+            const loose = (H1 * L1 + H2 * L2) * M;
+            volM3Span.textContent = loose.toFixed(2);
+
+            const c = parseFloat(coeff.value);
+            if (!isNaN(c) && c > 0 && loose > 0) {
+                volTmSpan.textContent = (loose * c).toFixed(2);
+            } else {
+                volTmSpan.textContent = '0.00';
+            }
+        }
+
+        btn.addEventListener('click', calculate);
+
+        // võimalda arvutada ka Enter klahviga mõnes väljas
+        const inputs = [h1, l1, h2, l2, m, coeff];
+        inputs.forEach(input => {
+            input.addEventListener('keypress', e => {
+                if (e.key === 'Enter') calculate();
+            });
+        });
+
+        // kuva kohe algväärtused
+        calculate();
+    })();
+</script>
+</body>
+</html>
